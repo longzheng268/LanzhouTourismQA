@@ -84,6 +84,44 @@ LanzhouTourismQA/
 - 自动保存聊天历史
 - 与C++版本数据库完全兼容
 
+## 🔒 配置部署说明
+
+项目支持多种配置场景，根据你的需求选择合适的方式：
+
+| 场景 | 配置来源 | 数据库状态 | 运行结果 |
+|------|---------|-----------|----------|
+| **本地开发** | `config.json`（真实凭证） | 启用（需配置） | ✅ 完整功能 |
+| **其他用户部署** | 自己的 `config.json` | 启用（填入自己的凭证） | ✅ 完整功能 |
+| **配置缺失** | Models.kt 默认值 | 禁用（空值） | ✅ 降级运行（仅JSON模式） |
+
+### 📝 部署步骤
+
+#### 方式一：完整部署（推荐）
+```bash
+# 1. 复制配置模板
+cp src/main/resources/config.json.example src/main/resources/config.json
+
+# 2. 编辑配置文件，填入你的API密钥
+# 编辑 src/main/resources/config.json
+
+# 3. 运行项目
+./gradlew run
+```
+
+#### 方式二：快速运行（无需配置）
+```bash
+# 直接运行，使用本地JSON知识库（无需数据库）
+./gradlew run
+```
+> 注意：此方式仅使用本地知识库，不支持数据库功能
+
+### ⚠️ 重要提示
+
+1. **config.json** 文件不会被提交到Git（已配置在 `.gitignore` 中）
+2. 每个用户需要创建自己的 `config.json` 文件
+3. 如果不配置数据库，系统会自动降级到本地JSON模式
+4. API密钥必须有效，否则无法调用MIMO API
+
 ## 🔒 安全说明
 
 - **API密钥保护**：`.gitignore` 已配置，确保 `config.json` 不会被提交到版本控制
