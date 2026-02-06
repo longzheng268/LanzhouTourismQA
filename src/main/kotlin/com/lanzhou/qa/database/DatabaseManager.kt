@@ -24,6 +24,7 @@ class DatabaseManager(private val config: DatabaseConfig) {
 
     /**
      * 初始化数据库连接
+     * 支持MySQL和MariaDB
      */
     fun initialize(): Boolean {
         if (!config.enabled) {
@@ -33,11 +34,27 @@ class DatabaseManager(private val config: DatabaseConfig) {
 
         return try {
             val hikariConfig = HikariConfig().apply {
-                // JDBC URL - 与SQL脚本兼容
-                jdbcUrl = "jdbc:mariadb://${config.host}:${config.port}/${config.database}?useSSL=false"
+                // 尝试MariaDB驱动（优先）
+                try {
+                    Class.forName("org.mariadb.jdbc.Driver")
+                    jdbcUrl = "jdbc:mariadb://${config.host}:${config.port}/${config.database}?useSSL=false"
+                    driverClassName = "org.mariadb.jdbc.Driver"
+                    println("ℹ️ 使用MariaDB驱动")
+                } catch (e: ClassNotFoundException) {
+                    // MariaDB驱动不存在，尝试MySQL驱动
+                    try {
+                        Class.forName("com.mysql.cj.jdbc.Driver")
+                        jdbcUrl = "jdbc:mysql://${config.host}:${config.port}/${config.database}?useSSL=false&serverTimezone=UTC"
+                        driverClassName = "com.mysql.cj.jdbc.Driver"
+                        println("ℹ️ 使用MySQL驱动")
+                    } catch (e2: ClassNotFoundException) {
+                        println("❌ 未找到数据库驱动，请确保MariaDB或MySQL驱动已添加到classpath")
+                        return false
+                    }
+                }
+
                 username = config.username
                 password = config.password
-                driverClassName = "org.mariadb.jdbc.Driver"
 
                 // 连接池配置
                 maximumPoolSize = config.maximumPoolSize

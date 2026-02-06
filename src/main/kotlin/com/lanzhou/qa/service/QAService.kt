@@ -3,12 +3,18 @@ package com.lanzhou.qa.service
 import com.lanzhou.qa.api.MIMOClient
 import com.lanzhou.qa.config.ChatHistory
 import com.lanzhou.qa.config.ConfigManager
+import com.lanzhou.qa.config.LanguageManager
 import com.lanzhou.qa.database.DatabaseManager
 import com.lanzhou.qa.embedding.EmbeddingModel
 import com.lanzhou.qa.model.KnowledgeItem
 import com.lanzhou.qa.rag.RAGRetriever
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
+import java.io.File
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
 
 /**
  * QA服务 - 整合RAG和MIMO API
@@ -30,10 +36,29 @@ class QAService {
     private var ragRetriever: RAGRetriever? = null
     private val mimoClient = MIMOClient(config.api)
 
+    // JSON聊天历史存储
+    private val jsonHistoryFile = File("chat_history.json")
+    private val jsonHistoryLock = Any()
+
     init {
         // 初始化时加载默认数据源
         reloadKnowledgeBase(currentDataSource)
     }
+
+    /**
+     * JSON聊天历史数据类
+     */
+    @Serializable
+    private data class JSONChatHistory(
+        val history: List<JSONChatRecord>
+    )
+
+    @Serializable
+    private data class JSONChatRecord(
+        val question: String,
+        val answer: String,
+        val timestamp: String
+    )
 
     /**
      * 重新加载知识库（支持动态切换数据源）
@@ -108,11 +133,11 @@ class QAService {
                 // 2. 构建上下文
                 val context = retriever.buildContext(retrievalResults)
 
-                // 3. 构建RAG提示词
+                // 3. 构建RAG提示词（使用当前语言的系统提示词）
                 val prompt = retriever.buildPrompt(
                     question = question,
                     context = context,
-                    systemPrompt = config.system.prompt_template
+                    systemPrompt = LanguageManager.getSystemPrompt()
                 )
 
                 // 4. 调用MIMO API
@@ -138,13 +163,84 @@ class QAService {
             // 在后台线程保存，不阻塞主流程
             Thread {
                 try {
-                    databaseManager.saveChatHistory(question, answer)
+                    if (databaseConfig.enabled && databaseManager.isInitialized()) {
+                        // 保存到数据库
+                        databaseManager.saveChatHistory(question, answer)
+                    } else {
+                        // 保存到JSON文件
+                        saveChatHistoryToJSON(question, answer)
+                    }
                 } catch (e: Exception) {
                     println("⚠️ 保存聊天历史失败: ${e.message}")
                 }
             }.start()
         } catch (e: Exception) {
             println("⚠️ 启动保存聊天历史线程失败: ${e.message}")
+        }
+    }
+
+    /**
+     * 保存聊天历史到JSON文件
+     */
+    private fun saveChatHistoryToJSON(question: String, answer: String) {
+        synchronized(jsonHistoryLock) {
+            try {
+                val json = Json { ignoreUnknownKeys = true }
+                val timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))
+
+                // 读取现有历史
+                val historyData = if (jsonHistoryFile.exists()) {
+                    val content = jsonHistoryFile.readText()
+                    json.decodeFromString(JSONChatHistory.serializer(), content)
+                } else {
+                    JSONChatHistory(emptyList())
+                }
+
+                // 添加新记录
+                val newRecord = JSONChatRecord(question, answer, timestamp)
+                val updatedHistory = historyData.history + newRecord
+
+                // 限制历史记录数量（最多100条）
+                val limitedHistory = updatedHistory.takeLast(100)
+
+                // 写入文件
+                val updatedData = JSONChatHistory(limitedHistory)
+                val jsonString = json.encodeToString(JSONChatHistory.serializer(), updatedData)
+                jsonHistoryFile.writeText(jsonString)
+
+                println("✅ 聊天历史已保存到JSON: ${jsonHistoryFile.absolutePath}")
+            } catch (e: Exception) {
+                println("⚠️ 保存聊天历史到JSON失败: ${e.message}")
+            }
+        }
+    }
+
+    /**
+     * 从JSON文件加载聊天历史
+     */
+    private fun loadChatHistoryFromJSON(limit: Int): List<ChatHistory> {
+        synchronized(jsonHistoryLock) {
+            try {
+                if (!jsonHistoryFile.exists()) {
+                    return emptyList()
+                }
+
+                val json = Json { ignoreUnknownKeys = true }
+                val content = jsonHistoryFile.readText()
+                val historyData = json.decodeFromString(JSONChatHistory.serializer(), content)
+
+                return historyData.history.takeLast(limit).map { record ->
+                    ChatHistory(
+                        id = 0, // JSON模式没有ID
+                        question = record.question,
+                        answer = record.answer,
+                        timestamp = record.timestamp
+                    )
+                }
+            } catch (e: Exception) {
+                println("⚠️ 加载聊天历史从JSON失败: ${e.message}")
+                return emptyList()
+            }
         }
     }
 
@@ -218,7 +314,7 @@ class QAService {
         return if (databaseConfig.enabled && databaseManager.isInitialized()) {
             databaseManager.getChatHistory(limit)
         } else {
-            emptyList()
+            loadChatHistoryFromJSON(limit)
         }
     }
 

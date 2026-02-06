@@ -16,6 +16,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
+import com.lanzhou.qa.config.LanguageManager
 import com.lanzhou.qa.service.QAService
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -26,20 +27,26 @@ import kotlinx.coroutines.withContext
  * 使用 Compose Desktop 创建图形界面
  */
 fun main() = application {
+    var isFullscreen by remember { mutableStateOf(false) }
+
     Window(
         onCloseRequest = ::exitApplication,
-        title = "兰州旅游知识问答系统 - RAG版",
-        state = rememberWindowState(width = 1200.dp, height = 800.dp)
+        title = LanguageManager.getUIStrings().title,
+        state = rememberWindowState(
+            width = if (isFullscreen) 1920.dp else 1200.dp,
+            height = if (isFullscreen) 1080.dp else 800.dp
+        )
     ) {
-        App()
+        App(isFullscreen) { isFullscreen = it }
     }
 }
 
 @Composable
-fun App() {
+fun App(isFullscreen: Boolean, onFullscreenChange: (Boolean) -> Unit) {
     var isInitialized by remember { mutableStateOf(false) }
     var stats by remember { mutableStateOf<Map<String, Int>>(emptyMap()) }
     var service by remember { mutableStateOf<QAService?>(null) }
+    var currentLanguage by remember { mutableStateOf(LanguageManager.getCurrentLanguageCode()) }
 
     LaunchedEffect(Unit) {
         withContext(Dispatchers.IO) {
@@ -55,7 +62,9 @@ fun App() {
                 .fillMaxSize()
                 .padding(16.dp)
         ) {
-            Header()
+            Header(currentLanguage, isFullscreen, onFullscreenChange) { newLanguage ->
+                currentLanguage = newLanguage
+            }
 
             if (!isInitialized) {
                 Box(
@@ -65,35 +74,91 @@ fun App() {
                     CircularProgressIndicator()
                 }
             } else {
-                MainContent(service!!, stats)
+                MainContent(service!!, stats, currentLanguage)
             }
         }
     }
 }
 
 @Composable
-fun Header() {
+fun Header(currentLanguage: String, isFullscreen: Boolean, onFullscreenChange: (Boolean) -> Unit, onLanguageChange: (String) -> Unit) {
+    val uiStrings = LanguageManager.getUIStrings()
+    var expanded by remember { mutableStateOf(false) }
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .padding(bottom = 16.dp)
     ) {
-        Text(
-            text = "兰州旅游知识问答系统",
-            style = MaterialTheme.typography.headlineMedium,
-            color = MaterialTheme.colorScheme.primary
-        )
-        Text(
-            text = "RAG版 - 基于知识库的智能问答",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.secondary
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column {
+                Text(
+                    text = uiStrings.title,
+                    style = MaterialTheme.typography.headlineMedium,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Text(
+                    text = uiStrings.subtitle,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.secondary
+                )
+            }
+
+            // 控制按钮区域
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // 全屏按钮
+                OutlinedButton(
+                    onClick = { onFullscreenChange(!isFullscreen) },
+                    modifier = Modifier.height(40.dp)
+                ) {
+                    Text(if (isFullscreen) "⛶" else "⛶")
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(if (isFullscreen) "退出全屏" else "全屏")
+                }
+
+                // 语言选择器
+                Box {
+                    OutlinedButton(
+                        onClick = { expanded = true },
+                        modifier = Modifier.height(40.dp)
+                    ) {
+                        Text("🌐")
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(LanguageManager.getLanguageName(currentLanguage))
+                    }
+
+                    DropdownMenu(
+                        expanded = expanded,
+                        onDismissRequest = { expanded = false }
+                    ) {
+                        LanguageManager.getAvailableLanguages().forEach { code ->
+                            DropdownMenuItem(
+                                text = { Text(LanguageManager.getLanguageName(code)) },
+                                onClick = {
+                                    LanguageManager.setCurrentLanguage(code)
+                                    onLanguageChange(code)
+                                    expanded = false
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+        }
         Spacer(modifier = Modifier.height(8.dp))
     }
 }
 
 @Composable
-fun MainContent(service: QAService, stats: Map<String, Int>) {
+fun MainContent(service: QAService, stats: Map<String, Int>, currentLanguage: String) {
+    val uiStrings = LanguageManager.getUIStrings()
     var selectedTab by remember { mutableStateOf(0) }
     var question by remember { mutableStateOf("") }
     var answer by remember { mutableStateOf("") }
@@ -102,7 +167,7 @@ fun MainContent(service: QAService, stats: Map<String, Int>) {
     var reloadMessage by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
 
-    val sourceText = if (currentSource == 1) "数据库" else "本地JSON"
+    val sourceText = if (currentSource == 1) uiStrings.database_mode else uiStrings.json_mode
 
     Column(
         modifier = Modifier.fillMaxSize()
@@ -118,7 +183,7 @@ fun MainContent(service: QAService, stats: Map<String, Int>) {
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("📊 系统信息", style = MaterialTheme.typography.titleMedium)
+                    Text("📊 ${uiStrings.stats}", style = MaterialTheme.typography.titleMedium)
 
                     // 数据源选择按钮
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -128,7 +193,7 @@ fun MainContent(service: QAService, stats: Map<String, Int>) {
                                     withContext(Dispatchers.IO) {
                                         val success = service.reloadKnowledgeBase(0)
                                         currentSource = 0
-                                        reloadMessage = if (success) "✅ 已切换到本地JSON" else "❌ 切换失败"
+                                        reloadMessage = if (success) uiStrings.switch_to_json_success else "❌ 切换失败"
                                     }
                                 }
                             },
@@ -142,7 +207,7 @@ fun MainContent(service: QAService, stats: Map<String, Int>) {
                             },
                             modifier = Modifier.height(32.dp)
                         ) {
-                            Text("JSON", fontSize = 12.sp)
+                            Text(uiStrings.json_mode, fontSize = 12.sp)
                         }
 
                         OutlinedButton(
@@ -151,7 +216,7 @@ fun MainContent(service: QAService, stats: Map<String, Int>) {
                                     withContext(Dispatchers.IO) {
                                         val success = service.reloadKnowledgeBase(1)
                                         currentSource = 1
-                                        reloadMessage = if (success) "✅ 已切换到数据库" else "❌ 切换失败，请检查数据库配置"
+                                        reloadMessage = if (success) uiStrings.switch_to_database_success else uiStrings.switch_to_database_failed
                                     }
                                 }
                             },
@@ -165,7 +230,7 @@ fun MainContent(service: QAService, stats: Map<String, Int>) {
                             },
                             modifier = Modifier.height(32.dp)
                         ) {
-                            Text("数据库", fontSize = 12.sp)
+                            Text(uiStrings.database_mode, fontSize = 12.sp)
                         }
                     }
                 }
@@ -176,12 +241,12 @@ fun MainContent(service: QAService, stats: Map<String, Int>) {
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Text("来源: $sourceText", style = MaterialTheme.typography.bodySmall)
-                    Text("条目: ${stats["totalItems"]} 条", style = MaterialTheme.typography.bodySmall)
-                    Text("分类: ${stats["categories"]} 类", style = MaterialTheme.typography.bodySmall)
+                    Text("${uiStrings.data_source}: $sourceText", style = MaterialTheme.typography.bodySmall)
+                    Text("${uiStrings.total_items}: ${stats["totalItems"]} ${uiStrings.items}", style = MaterialTheme.typography.bodySmall)
+                    Text("${uiStrings.categories}: ${stats["categories"]} 类", style = MaterialTheme.typography.bodySmall)
                     if (currentSource == 1) {
-                        Text("DB-QA: ${stats["db_qa_pairs"] ?: 0} 条", style = MaterialTheme.typography.bodySmall)
-                        Text("历史: ${stats["db_chat_history"] ?: 0} 条", style = MaterialTheme.typography.bodySmall)
+                        Text("${uiStrings.db_qa}: ${stats["db_qa_pairs"] ?: 0} ${uiStrings.items}", style = MaterialTheme.typography.bodySmall)
+                        Text("${uiStrings.history}: ${stats["db_chat_history"] ?: 0} ${uiStrings.items}", style = MaterialTheme.typography.bodySmall)
                     }
                 }
 
@@ -201,31 +266,31 @@ fun MainContent(service: QAService, stats: Map<String, Int>) {
             Tab(
                 selected = selectedTab == 0,
                 onClick = { selectedTab = 0 },
-                text = { Text("问答") }
+                text = { Text(uiStrings.question) }
             )
             Tab(
                 selected = selectedTab == 1,
                 onClick = { selectedTab = 1 },
-                text = { Text("知识库") }
+                text = { Text(uiStrings.knowledge_base) }
             )
             Tab(
                 selected = selectedTab == 2,
                 onClick = { selectedTab = 2 },
-                text = { Text("聊天历史") }
+                text = { Text(uiStrings.chat_history) }
             )
             Tab(
                 selected = selectedTab == 3,
                 onClick = { selectedTab = 3 },
-                text = { Text("统计") }
+                text = { Text(uiStrings.stats) }
             )
         }
 
         // 选项卡内容
         when (selectedTab) {
-            0 -> QATab(service, question, { question = it }, answer, isAsking, { isAsking = it })
-            1 -> KnowledgeTab(service)
-            2 -> ChatHistoryTab(service)
-            3 -> StatsTab(service, stats)
+            0 -> QATab(service, question, { question = it }, { newAnswer -> answer = newAnswer }, answer, isAsking, { isAsking = it }, currentLanguage)
+            1 -> KnowledgeTab(service, currentLanguage)
+            2 -> ChatHistoryTab(service, currentLanguage)
+            3 -> StatsTab(service, stats, currentLanguage)
         }
     }
 }
@@ -238,10 +303,13 @@ fun QATab(
     service: QAService,
     question: String,
     onQuestionChange: (String) -> Unit,
+    onAnswerChange: (String) -> Unit,
     answer: String,
     isAsking: Boolean,
-    onAskingChange: (Boolean) -> Unit
+    onAskingChange: (Boolean) -> Unit,
+    currentLanguage: String
 ) {
+    val uiStrings = LanguageManager.getUIStrings()
     val actualScope = rememberCoroutineScope()
     var testResult by remember { mutableStateOf("") }
 
@@ -259,7 +327,7 @@ fun QATab(
                 OutlinedTextField(
                     value = question,
                     onValueChange = onQuestionChange,
-                    label = { Text("请输入您的问题") },
+                    label = { Text(uiStrings.question_label) },
                     modifier = Modifier.fillMaxWidth(),
                     minLines = 3,
                     enabled = !isAsking
@@ -278,9 +346,9 @@ fun QATab(
                                 withContext(Dispatchers.IO) {
                                     val success = service.testApiConnection()
                                     testResult = if (success) {
-                                        "✅ API连接测试成功"
+                                        uiStrings.test_api_success
                                     } else {
-                                        "❌ API连接测试失败"
+                                        uiStrings.test_api_failed
                                     }
                                 }
                             }
@@ -288,7 +356,7 @@ fun QATab(
                         enabled = !isAsking,
                         modifier = Modifier.weight(1f)
                     ) {
-                        Text("测试API")
+                        Text(uiStrings.test_api)
                     }
 
                     // 测试数据库连接按钮
@@ -298,9 +366,9 @@ fun QATab(
                                 withContext(Dispatchers.IO) {
                                     val success = service.testDatabaseConnection()
                                     testResult = if (success) {
-                                        "✅ 数据库连接测试成功"
+                                        uiStrings.test_db_success
                                     } else {
-                                        "❌ 数据库连接测试失败（可能未启用数据库模式）"
+                                        uiStrings.test_db_failed
                                     }
                                 }
                             }
@@ -308,7 +376,7 @@ fun QATab(
                         enabled = !isAsking,
                         modifier = Modifier.weight(1f)
                     ) {
-                        Text("测试数据库")
+                        Text(uiStrings.test_database)
                     }
 
                     // 提问按钮
@@ -318,7 +386,8 @@ fun QATab(
                                 onAskingChange(true)
                                 actualScope.launch {
                                     withContext(Dispatchers.IO) {
-                                        // 回答逻辑在这里处理
+                                        val response = service.askQuestion(question)
+                                        onAnswerChange(response)
                                     }
                                     onAskingChange(false)
                                 }
@@ -333,7 +402,7 @@ fun QATab(
                                 color = MaterialTheme.colorScheme.onPrimary
                             )
                         } else {
-                            Text("提问 AI")
+                            Text(uiStrings.ask_ai)
                         }
                     }
                 }
@@ -356,7 +425,7 @@ fun QATab(
                     modifier = Modifier.padding(12.dp)
                 ) {
                     Text(
-                        text = "🔧 测试结果",
+                        text = "🔧 ${uiStrings.test_result}",
                         style = MaterialTheme.typography.titleMedium,
                         color = if (testResult.contains("✅")) {
                             MaterialTheme.colorScheme.primary
@@ -383,7 +452,7 @@ fun QATab(
                     modifier = Modifier.padding(12.dp)
                 ) {
                     Text(
-                        text = "💡 AI 回答",
+                        text = "💡 ${uiStrings.ai_answer}",
                         style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.primary
                     )
@@ -403,7 +472,8 @@ fun QATab(
  * 知识库浏览选项卡
  */
 @Composable
-fun KnowledgeTab(service: QAService) {
+fun KnowledgeTab(service: QAService, currentLanguage: String) {
+    val uiStrings = LanguageManager.getUIStrings()
     var allKnowledge by remember { mutableStateOf(emptyList<com.lanzhou.qa.model.KnowledgeItem>()) }
     var filteredKnowledge by remember { mutableStateOf(emptyList<com.lanzhou.qa.model.KnowledgeItem>()) }
     var searchKeyword by remember { mutableStateOf("") }
@@ -453,9 +523,9 @@ fun KnowledgeTab(service: QAService) {
                             }
                         }
                     },
-                    label = { Text("搜索知识...") },
+                    label = { Text(uiStrings.search_knowledge) },
                     modifier = Modifier.weight(1f),
-                    leadingIcon = { Icon(Icons.Default.Search, "搜索") }
+                    leadingIcon = { Icon(Icons.Default.Search, uiStrings.search_knowledge) }
                 )
                 Button(
                     onClick = {
@@ -468,13 +538,13 @@ fun KnowledgeTab(service: QAService) {
                         }
                     }
                 ) {
-                    Text("刷新", fontSize = 12.sp)
+                    Text(uiStrings.refresh, fontSize = 12.sp)
                 }
             }
 
             // 结果统计
             Text(
-                text = "找到 ${filteredKnowledge.size} 条知识 (共 ${allKnowledge.size} 条)",
+                text = LanguageManager.formatString(uiStrings.total_records, "count" to filteredKnowledge.size),
                 style = MaterialTheme.typography.bodySmall,
                 modifier = Modifier.padding(bottom = 8.dp)
             )
@@ -513,7 +583,7 @@ fun KnowledgeTab(service: QAService) {
                                     color = MaterialTheme.colorScheme.secondary
                                 )
                                 Text(
-                                    text = "ID: ${item.id}",
+                                    text = "${uiStrings.id}: ${item.id}",
                                     style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.secondary
                                 )
@@ -530,7 +600,8 @@ fun KnowledgeTab(service: QAService) {
  * 聊天历史选项卡
  */
 @Composable
-fun ChatHistoryTab(service: QAService) {
+fun ChatHistoryTab(service: QAService, currentLanguage: String) {
+    val uiStrings = LanguageManager.getUIStrings()
     var chatHistory by remember { mutableStateOf(emptyList<com.lanzhou.qa.config.ChatHistory>()) }
     var isLoading by remember { mutableStateOf(true) }
     val coroutineScope = rememberCoroutineScope()
@@ -560,7 +631,7 @@ fun ChatHistoryTab(service: QAService) {
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = "暂无聊天历史",
+                    text = uiStrings.no_chat_history,
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.secondary
                 )
@@ -574,7 +645,7 @@ fun ChatHistoryTab(service: QAService) {
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "共 ${chatHistory.size} 条聊天记录",
+                    text = LanguageManager.formatString(uiStrings.total_records, "count" to chatHistory.size),
                     style = MaterialTheme.typography.titleSmall
                 )
                 Button(
@@ -586,7 +657,7 @@ fun ChatHistoryTab(service: QAService) {
                         }
                     }
                 ) {
-                    Text("刷新", fontSize = 12.sp)
+                    Text(uiStrings.refresh, fontSize = 12.sp)
                 }
             }
 
@@ -602,13 +673,13 @@ fun ChatHistoryTab(service: QAService) {
                             modifier = Modifier.padding(12.dp)
                         ) {
                             Text(
-                                text = "🙋 问: ${record.question}",
+                                text = "🙋 ${uiStrings.question}: ${record.question}",
                                 style = MaterialTheme.typography.titleSmall,
                                 color = MaterialTheme.colorScheme.primary
                             )
                             Spacer(modifier = Modifier.height(6.dp))
                             Text(
-                                text = "🤖 答: ${record.answer}",
+                                text = "🤖 ${uiStrings.answer}: ${record.answer}",
                                 style = MaterialTheme.typography.bodySmall,
                                 lineHeight = 16.sp
                             )
@@ -630,7 +701,8 @@ fun ChatHistoryTab(service: QAService) {
  * 统计信息选项卡
  */
 @Composable
-fun StatsTab(service: QAService, stats: Map<String, Int>) {
+fun StatsTab(service: QAService, stats: Map<String, Int>, currentLanguage: String) {
+    val uiStrings = LanguageManager.getUIStrings()
     var currentStats by remember { mutableStateOf(stats) }
     val coroutineScope = rememberCoroutineScope()
 
@@ -651,7 +723,7 @@ fun StatsTab(service: QAService, stats: Map<String, Int>) {
             },
             modifier = Modifier.align(Alignment.End).padding(bottom = 12.dp)
         ) {
-            Text("刷新统计")
+            Text(uiStrings.refresh)
         }
 
         // 基础统计
@@ -664,15 +736,15 @@ fun StatsTab(service: QAService, stats: Map<String, Int>) {
                 modifier = Modifier.padding(16.dp)
             ) {
                 Text(
-                    text = "📊 基础统计",
+                    text = "📊 ${uiStrings.basic_stats}",
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.primary
                 )
                 Spacer(modifier = Modifier.height(12.dp))
 
-                StatsRow("知识总条数", currentStats["totalItems"]?.toString() ?: "0")
-                StatsRow("分类数量", currentStats["categories"]?.toString() ?: "0")
-                StatsRow("数据源", if (currentStats["source"] == 1) "数据库" else "本地JSON")
+                StatsRow(uiStrings.total_items, currentStats["totalItems"]?.toString() ?: "0")
+                StatsRow(uiStrings.categories, currentStats["categories"]?.toString() ?: "0")
+                StatsRow(uiStrings.data_source, if (currentStats["source"] == 1) uiStrings.database_mode else uiStrings.json_mode)
             }
         }
 
@@ -687,14 +759,14 @@ fun StatsTab(service: QAService, stats: Map<String, Int>) {
                     modifier = Modifier.padding(16.dp)
                 ) {
                     Text(
-                        text = "🗄️ 数据库统计",
+                        text = "🗄️ ${uiStrings.db_stats}",
                         style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.primary
                     )
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    StatsRow("QA对数量", currentStats["db_qa_pairs"]?.toString() ?: "0")
-                    StatsRow("聊天历史", currentStats["db_chat_history"]?.toString() ?: "0")
+                    StatsRow(uiStrings.db_qa_pairs, currentStats["db_qa_pairs"]?.toString() ?: "0")
+                    StatsRow(uiStrings.db_chat_history, currentStats["db_chat_history"]?.toString() ?: "0")
                 }
             }
         }
@@ -709,7 +781,7 @@ fun StatsTab(service: QAService, stats: Map<String, Int>) {
                     modifier = Modifier.padding(16.dp)
                 ) {
                     Text(
-                        text = "📚 分类统计",
+                        text = "📚 ${uiStrings.category_stats}",
                         style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.primary
                     )
@@ -717,7 +789,7 @@ fun StatsTab(service: QAService, stats: Map<String, Int>) {
 
                     categoryStats.forEach { (key, value) ->
                         val categoryName = key.removePrefix("category_")
-                        StatsRow(categoryName, "$value 条")
+                        StatsRow(categoryName, "$value ${uiStrings.items}")
                     }
                 }
             }
