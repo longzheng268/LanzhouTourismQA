@@ -3,8 +3,8 @@
 -- 语法严格版 - 避免重复创建表
 -- ============================================
 
--- 设置严格模式
-SET SQL_MODE = 'STRICT_ALL_TABLES';
+-- 设置严格模式（包含所有严格模式选项）
+SET SQL_MODE = 'STRICT_TRANS_TABLES,STRICT_ALL_TABLES,NO_ZERO_DATE,NO_ZERO_IN_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION';
 SET NAMES utf8mb4;
 SET CHARACTER SET utf8mb4;
 
