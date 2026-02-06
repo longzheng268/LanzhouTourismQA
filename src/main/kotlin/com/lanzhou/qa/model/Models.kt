@@ -42,11 +42,11 @@ data class EmbeddingConfig(
 @Serializable
 data class DatabaseConfig(
     val enabled: Boolean = false,
-    val host: String = "raspberry.lz-0315.com",
+    val host: String = "",
     val port: Int = 3306,
-    val database: String = "qa_database",
-    val username: String = "root",
-    val password: String = "lz",
+    val database: String = "",
+    val username: String = "",
+    val password: String = "",
     val maximumPoolSize: Int = 10,
     val minimumIdle: Int = 2,
     val connectionTimeout: Int = 30000
