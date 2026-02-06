@@ -243,6 +243,7 @@ fun QATab(
     onAskingChange: (Boolean) -> Unit
 ) {
     val actualScope = rememberCoroutineScope()
+    var testResult by remember { mutableStateOf("") }
 
     Column(
         modifier = Modifier
@@ -275,8 +276,12 @@ fun QATab(
                         onClick = {
                             actualScope.launch {
                                 withContext(Dispatchers.IO) {
-                                    val testResult = service.testApiConnection()
-                                    onQuestionChange("")
+                                    val success = service.testApiConnection()
+                                    testResult = if (success) {
+                                        "✅ API连接测试成功"
+                                    } else {
+                                        "❌ API连接测试失败"
+                                    }
                                 }
                             }
                         },
@@ -284,6 +289,26 @@ fun QATab(
                         modifier = Modifier.weight(1f)
                     ) {
                         Text("测试API")
+                    }
+
+                    // 测试数据库连接按钮
+                    OutlinedButton(
+                        onClick = {
+                            actualScope.launch {
+                                withContext(Dispatchers.IO) {
+                                    val success = service.testDatabaseConnection()
+                                    testResult = if (success) {
+                                        "✅ 数据库连接测试成功"
+                                    } else {
+                                        "❌ 数据库连接测试失败（可能未启用数据库模式）"
+                                    }
+                                }
+                            }
+                        },
+                        enabled = !isAsking,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("测试数据库")
                     }
 
                     // 提问按钮
@@ -311,6 +336,40 @@ fun QATab(
                             Text("提问 AI")
                         }
                     }
+                }
+            }
+        }
+
+        // 测试结果显示区域
+        if (testResult.isNotEmpty()) {
+            Card(
+                modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = if (testResult.contains("✅")) {
+                        MaterialTheme.colorScheme.primaryContainer
+                    } else {
+                        MaterialTheme.colorScheme.errorContainer
+                    }
+                )
+            ) {
+                Column(
+                    modifier = Modifier.padding(12.dp)
+                ) {
+                    Text(
+                        text = "🔧 测试结果",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = if (testResult.contains("✅")) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.error
+                        }
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = testResult,
+                        style = MaterialTheme.typography.bodyMedium,
+                        lineHeight = 18.sp
+                    )
                 }
             }
         }
