@@ -99,6 +99,19 @@ class DatabaseManager(private val config: DatabaseConfig) {
      * 测试数据库连接
      */
     fun testConnection(): Boolean {
+        if (!config.enabled) {
+            println("❌ 数据库未启用，请在 config.json 中设置 database.enabled = true")
+            return false
+        }
+
+        if (!initialized) {
+            println("⚠️ 数据库未初始化，正在尝试连接...")
+            val result = initialize()
+            if (!result) {
+                return false
+            }
+        }
+
         return try {
             getConnection()?.use { conn ->
                 val stmt = conn.createStatement()

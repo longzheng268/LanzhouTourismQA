@@ -271,12 +271,21 @@ class QAService {
 
     /**
      * 测试数据库连接
+     * 在JSON模式下测试JSON文件读取，在数据库模式下测试数据库连接
      */
     fun testDatabaseConnection(): Boolean {
         return if (databaseConfig.enabled) {
+            // 数据库模式 - 测试数据库连接
             databaseManager.testConnection()
         } else {
-            false
+            // JSON模式 - 测试JSON文件读取
+            try {
+                val knowledgeBase = ConfigManager.loadKnowledgeBase()
+                knowledgeBase.knowledge_base.isNotEmpty()
+            } catch (e: Exception) {
+                println("❌ JSON文件读取失败: ${e.message}")
+                false
+            }
         }
     }
 

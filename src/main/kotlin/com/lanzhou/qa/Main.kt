@@ -27,22 +27,20 @@ import kotlinx.coroutines.withContext
  * 使用 Compose Desktop 创建图形界面
  */
 fun main() = application {
-    var isFullscreen by remember { mutableStateOf(false) }
-
     Window(
         onCloseRequest = ::exitApplication,
         title = LanguageManager.getUIStrings().title,
         state = rememberWindowState(
-            width = if (isFullscreen) 1920.dp else 1200.dp,
-            height = if (isFullscreen) 1080.dp else 800.dp
+            width = 1200.dp,
+            height = 800.dp
         )
     ) {
-        App(isFullscreen) { isFullscreen = it }
+        App()
     }
 }
 
 @Composable
-fun App(isFullscreen: Boolean, onFullscreenChange: (Boolean) -> Unit) {
+fun App() {
     var isInitialized by remember { mutableStateOf(false) }
     var stats by remember { mutableStateOf<Map<String, Int>>(emptyMap()) }
     var service by remember { mutableStateOf<QAService?>(null) }
@@ -62,7 +60,7 @@ fun App(isFullscreen: Boolean, onFullscreenChange: (Boolean) -> Unit) {
                 .fillMaxSize()
                 .padding(16.dp)
         ) {
-            Header(currentLanguage, isFullscreen, onFullscreenChange) { newLanguage ->
+            Header(currentLanguage) { newLanguage ->
                 currentLanguage = newLanguage
             }
 
@@ -81,7 +79,7 @@ fun App(isFullscreen: Boolean, onFullscreenChange: (Boolean) -> Unit) {
 }
 
 @Composable
-fun Header(currentLanguage: String, isFullscreen: Boolean, onFullscreenChange: (Boolean) -> Unit, onLanguageChange: (String) -> Unit) {
+fun Header(currentLanguage: String, onLanguageChange: (String) -> Unit) {
     val uiStrings = LanguageManager.getUIStrings()
     var expanded by remember { mutableStateOf(false) }
 
@@ -113,16 +111,6 @@ fun Header(currentLanguage: String, isFullscreen: Boolean, onFullscreenChange: (
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // 全屏按钮
-                OutlinedButton(
-                    onClick = { onFullscreenChange(!isFullscreen) },
-                    modifier = Modifier.height(40.dp)
-                ) {
-                    Text(if (isFullscreen) "⛶" else "⛶")
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(if (isFullscreen) "退出全屏" else "全屏")
-                }
-
                 // 语言选择器
                 Box {
                     OutlinedButton(
@@ -243,7 +231,7 @@ fun MainContent(service: QAService, stats: Map<String, Int>, currentLanguage: St
                 ) {
                     Text("${uiStrings.data_source}: $sourceText", style = MaterialTheme.typography.bodySmall)
                     Text("${uiStrings.total_items}: ${stats["totalItems"]} ${uiStrings.items}", style = MaterialTheme.typography.bodySmall)
-                    Text("${uiStrings.categories}: ${stats["categories"]} 类", style = MaterialTheme.typography.bodySmall)
+                    Text("${uiStrings.categories}: ${stats["categories"]}", style = MaterialTheme.typography.bodySmall)
                     if (currentSource == 1) {
                         Text("${uiStrings.db_qa}: ${stats["db_qa_pairs"] ?: 0} ${uiStrings.items}", style = MaterialTheme.typography.bodySmall)
                         Text("${uiStrings.history}: ${stats["db_chat_history"] ?: 0} ${uiStrings.items}", style = MaterialTheme.typography.bodySmall)
@@ -258,6 +246,7 @@ fun MainContent(service: QAService, stats: Map<String, Int>, currentLanguage: St
                         color = if (reloadMessage.contains("✅")) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
                     )
                 }
+
             }
         }
 
