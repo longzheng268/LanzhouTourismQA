@@ -37,7 +37,7 @@ class DatabaseManager(private val config: DatabaseConfig) {
                 // 尝试MariaDB驱动（优先）
                 try {
                     Class.forName("org.mariadb.jdbc.Driver")
-                    jdbcUrl = "jdbc:mariadb://${config.host}:${config.port}/${config.database}?useSSL=false"
+                    jdbcUrl = "jdbc:mariadb://${config.host}:${config.port}/${config.database}?useSSL=false&allowPublicKeyRetrieval=true"
                     driverClassName = "org.mariadb.jdbc.Driver"
                     println("ℹ️ 使用MariaDB驱动")
                 } catch (e: ClassNotFoundException) {
