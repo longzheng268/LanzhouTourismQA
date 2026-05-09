@@ -48,7 +48,11 @@
         "source": "来源",
         "items": "条目",
         "db_qa": "DB-QA",
-        "history": "历史"
+        "history": "历史",
+        "generate_image": "生成图片",
+        "generated_images": "生成图片",
+        "image_generation_failed": "❌ 图像生成失败，请检查配置或网络",
+        "no_generated_image": "未生成图片，请重试"
       },
       "ai": {
         "system_prompt": "你是一个专业的兰州旅游专家，精通兰州的地理、景点、美食、文化、历史等各个方面。请用中文回答用户的问题。",
@@ -103,7 +107,11 @@
         "source": "Source",
         "items": "Items",
         "db_qa": "DB-QA",
-        "history": "History"
+        "history": "History",
+        "generate_image": "Generate Image",
+        "generated_images": "Generated Images",
+        "image_generation_failed": "❌ Image generation failed, please check configuration or network",
+        "no_generated_image": "No image generated, please try again"
       },
       "ai": {
         "system_prompt": "You are a professional Lanzhou tourism expert, proficient in all aspects of Lanzhou's geography, attractions, food, culture, history, etc. IMPORTANT: You MUST answer the user's question in ENGLISH ONLY. Do not use any Chinese characters in your response. Respond exclusively in English.",
@@ -158,7 +166,11 @@
         "source": "Источник",
         "items": "Элементы",
         "db_qa": "DB-QA",
-        "history": "История"
+        "history": "История",
+        "generate_image": "Создать изображение",
+        "generated_images": "Созданные изображения",
+        "image_generation_failed": "❌ Генерация изображения не удалась, проверьте конфигурацию или сеть",
+        "no_generated_image": "Изображение не создано, пожалуйста, попробуйте снова"
       },
       "ai": {
         "system_prompt": "Вы являетесь профессиональным экспертом по туризму в Ланьчжоу, разбирающимся во всех аспектах географии, достопримечательностей, еды, культуры, истории и т.д. Ланьчжоу. ВАЖНО: Вы ОБЯЗАНЫ отвечать на вопрос пользователя ТОЛЬКО на РУССКОМ языке. Не используйте никакие китайские символы в своем ответе. Отвечайте исключительно на русском языке.",

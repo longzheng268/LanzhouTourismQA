@@ -22,7 +22,7 @@ object LanguageManager {
 
         return if (configFile.exists()) {
             val jsonString = configFile.readText()
-            json.decodeFromString(LanguageConfig.serializer(), jsonString)
+            json.decodeFromString<LanguageConfig>(jsonString)
         } else {
             // Fallback to default Chinese configuration
             LanguageConfig(
@@ -75,7 +75,11 @@ object LanguageManager {
                             source = "来源",
                             items = "条目",
                             db_qa = "DB-QA",
-                            history = "历史"
+                            history = "历史",
+                            generate_image = "生成图片",
+                            generated_images = "生成图片",
+                            image_generation_failed = "❌ 图像生成失败，请检查配置或网络",
+                            no_generated_image = "未生成图片，请重试"
                         ),
                         ai = AIStrings(
                             system_prompt = "你是一个专业的兰州旅游专家，精通兰州的地理、景点、美食、文化、历史等各个方面。请用中文回答用户的问题。",

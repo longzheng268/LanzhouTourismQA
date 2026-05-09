@@ -1,17 +1,21 @@
 package com.lanzhou.qa.service
 
 import com.lanzhou.qa.api.MIMOClient
+import com.lanzhou.qa.api.TTSClient
 import com.lanzhou.qa.config.ChatHistory
 import com.lanzhou.qa.config.ConfigManager
 import com.lanzhou.qa.config.LanguageManager
 import com.lanzhou.qa.database.DatabaseManager
+import com.lanzhou.qa.api.ImageClient
 import com.lanzhou.qa.embedding.EmbeddingModel
+import com.lanzhou.qa.model.ImageConfig
 import com.lanzhou.qa.model.KnowledgeItem
 import com.lanzhou.qa.rag.RAGRetriever
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.encodeToString
 import java.io.File
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
@@ -35,6 +39,8 @@ class QAService {
     private val embeddingModel = EmbeddingModel(config.embedding.dimension)
     private var ragRetriever: RAGRetriever? = null
     private val mimoClient = MIMOClient(config.api)
+    private val imageClient = ImageClient(config.image)
+    private val ttsClient = TTSClient(config.tts)
 
     // JSON聊天历史存储
     private val jsonHistoryFile = File("chat_history.json")
@@ -156,6 +162,29 @@ class QAService {
     }
 
     /**
+     * 根据回答生成智能图像
+     */
+    suspend fun generateImagesFromAnswer(answer: String, count: Int = 1): List<String> {
+        return withContext(Dispatchers.IO) {
+            if (answer.isBlank()) {
+                return@withContext emptyList<String>()
+            }
+
+            val imagePrompt = buildImagePrompt(answer)
+            val imagePaths = imageClient.generate(imagePrompt, count)
+
+            if (imagePaths.isEmpty()) {
+                println("⚠️ 未生成到图像结果，检查 image 配置和 API 是否可用")
+            }
+            imagePaths
+        }
+    }
+
+    private fun buildImagePrompt(answer: String): String {
+        return "Generate a high-quality, realistic image based on the following description: $answer"
+    }
+
+    /**
      * 异步保存聊天历史
      */
     private fun saveChatHistoryAsync(question: String, answer: String) {
@@ -191,7 +220,7 @@ class QAService {
                 // 读取现有历史
                 val historyData = if (jsonHistoryFile.exists()) {
                     val content = jsonHistoryFile.readText()
-                    json.decodeFromString(JSONChatHistory.serializer(), content)
+                    json.decodeFromString<JSONChatHistory>(content)
                 } else {
                     JSONChatHistory(emptyList())
                 }
@@ -205,7 +234,7 @@ class QAService {
 
                 // 写入文件
                 val updatedData = JSONChatHistory(limitedHistory)
-                val jsonString = json.encodeToString(JSONChatHistory.serializer(), updatedData)
+                val jsonString = Json.encodeToString<JSONChatHistory>(updatedData)
                 jsonHistoryFile.writeText(jsonString)
 
                 println("✅ 聊天历史已保存到JSON: ${jsonHistoryFile.absolutePath}")
@@ -227,7 +256,7 @@ class QAService {
 
                 val json = Json { ignoreUnknownKeys = true }
                 val content = jsonHistoryFile.readText()
-                val historyData = json.decodeFromString(JSONChatHistory.serializer(), content)
+                val historyData = json.decodeFromString<JSONChatHistory>(content)
 
                 return historyData.history.takeLast(limit).map { record ->
                     ChatHistory(
@@ -328,6 +357,31 @@ class QAService {
     }
 
     /**
+     * 朗读文本
+     */
+    suspend fun speakText(text: String): Boolean {
+        return withContext(Dispatchers.IO) {
+            ttsClient.speak(text)
+        }
+    }
+
+    var onAmplitudeUpdate: ((List<Float>) -> Unit)?
+        get() = ttsClient.onAmplitudeUpdate
+        set(value) { ttsClient.onAmplitudeUpdate = value }
+
+    /**
+     * 停止朗读
+     */
+    fun stopSpeaking() {
+        ttsClient.stop()
+    }
+
+    /**
+     * 是否正在朗读
+     */
+    fun isSpeaking(): Boolean = ttsClient.isSpeaking()
+
+    /**
      * 关闭数据库连接和客户端
      */
     fun close() {
@@ -336,5 +390,6 @@ class QAService {
         }
         // 关闭MIMO客户端
         mimoClient.close()
+        ttsClient.close()
     }
 }

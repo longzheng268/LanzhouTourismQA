@@ -38,6 +38,27 @@ data class EmbeddingConfig(
     val dimension: Int
 )
 
+@Serializable
+data class ImageConfig(
+    val enabled: Boolean = false,
+    val image_api_url: String = "",
+    val image_api_key: String = "",
+    val model: String = "",
+    val size: String = "512x512",
+    val response_format: String = "url",
+    val request_timeout_ms: Long = 60000
+)
+
+@Serializable
+data class TTSConfig(
+    val enabled: Boolean = false,
+    val api_url: String = "",
+    val api_key: String = "",
+    val model: String = "mimo-v2.5-tts-voicedesign",
+    val voice_style: String = "Give me a young female tone.",
+    val request_timeout_ms: Long = 60000
+)
+
 // 数据库配置
 @Serializable
 data class DatabaseConfig(
@@ -57,6 +78,8 @@ data class AppConfig(
     val api: ApiConfig,
     val system: SystemConfig,
     val embedding: EmbeddingConfig,
+    val image: ImageConfig = ImageConfig(),
+    val tts: TTSConfig = TTSConfig(),
     val database: DatabaseConfig
 )
 
@@ -108,4 +131,47 @@ data class VectorMetadata(
 data class RetrievalResult(
     val item: KnowledgeItem,
     val similarity: Double
+)
+
+// TTS 流式请求模型
+@Serializable
+data class TTSRequest(
+    val model: String,
+    val messages: List<Message>,
+    val audio: TTSAudioConfig,
+    val stream: Boolean = true
+)
+
+@Serializable
+data class TTSAudioConfig(
+    val format: String = "pcm16"
+)
+
+// TTS 流式响应模型
+@Serializable
+data class TTSStreamChunk(
+    val id: String? = null,
+    val `object`: String? = null,
+    val created: Long? = null,
+    val model: String? = null,
+    val choices: List<TTSChoice>? = null
+)
+
+@Serializable
+data class TTSChoice(
+    val index: Int? = null,
+    val delta: TTSDelta? = null,
+    val finish_reason: String? = null
+)
+
+@Serializable
+data class TTSDelta(
+    val role: String? = null,
+    val audio: TTSAudioData? = null
+)
+
+@Serializable
+data class TTSAudioData(
+    val data: String? = null,
+    val transcript: String? = null
 )

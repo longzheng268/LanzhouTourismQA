@@ -65,7 +65,11 @@ data class UIStrings(
     val source: String,
     val items: String,
     val db_qa: String,
-    val history: String
+    val history: String,
+    val generate_image: String,
+    val generated_images: String,
+    val image_generation_failed: String,
+    val no_generated_image: String
 )
 
 @Serializable
