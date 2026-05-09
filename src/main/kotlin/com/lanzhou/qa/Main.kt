@@ -678,7 +678,7 @@ fun QATab(
                         AudioWaveform(
                             amplitudes = waveformAmplitudes,
                             modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-                            barColor = MaterialTheme.colorScheme.primary
+                            primaryColor = MaterialTheme.colorScheme.primary
                         )
                     }
                     Row(
