@@ -355,11 +355,20 @@ class DatabaseManager(private val config: DatabaseConfig) {
         if (!initialized || !config.enabled) return 0
 
         var synced = 0
-        // 先尝试添加 category 列（如果不存在）
+        // 确保 category 列存在（兼容 MySQL 8 不支持 IF NOT EXISTS 的情况）
         try {
             getConnection()?.use { conn ->
-                conn.createStatement().use { stmt ->
-                    stmt.executeUpdate("ALTER TABLE qa_database.qa_pairs ADD COLUMN IF NOT EXISTS category VARCHAR(50) NOT NULL DEFAULT ''")
+                val hasCategoryColumn = try {
+                    conn.createStatement().use { stmt ->
+                        stmt.executeQuery("SELECT category FROM qa_database.qa_pairs LIMIT 1").close()
+                    }
+                    true
+                } catch (_: Exception) { false }
+
+                if (!hasCategoryColumn) {
+                    conn.createStatement().use { stmt ->
+                        stmt.executeUpdate("ALTER TABLE qa_database.qa_pairs ADD COLUMN category VARCHAR(50) NOT NULL DEFAULT ''")
+                    }
                 }
             }
         } catch (_: Exception) {}
@@ -368,17 +377,23 @@ class DatabaseManager(private val config: DatabaseConfig) {
 
         try {
             getConnection()?.use { conn ->
+                conn.autoCommit = false
                 conn.prepareStatement(sql).use { pstmt ->
-                    for (item in items) {
+                    for ((index, item) in items.withIndex()) {
                         pstmt.setInt(1, item.id)
                         pstmt.setString(2, item.question)
                         pstmt.setString(3, item.answer)
                         pstmt.setString(4, item.category)
                         pstmt.addBatch()
                         synced++
+                        if ((index + 1) % 500 == 0) {
+                            pstmt.executeBatch()
+                        }
                     }
                     pstmt.executeBatch()
                 }
+                conn.commit()
+                conn.autoCommit = true
             }
             println("✅ 同步了 $synced 条知识到数据库（含分类信息）")
         } catch (e: Exception) {

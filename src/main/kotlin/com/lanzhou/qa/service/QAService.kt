@@ -367,7 +367,11 @@ class QAService {
      */
     suspend fun speakText(text: String): Boolean {
         return withContext(Dispatchers.IO) {
-            ttsClient.speak(text)
+            val cleanedText = text
+                .replace(Regex("[#*]"), "")
+                .replace(Regex("\\s{2,}"), " ")
+                .trim()
+            ttsClient.speak(cleanedText)
         }
     }
 
