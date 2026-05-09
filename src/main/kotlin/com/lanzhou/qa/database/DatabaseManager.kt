@@ -134,20 +134,40 @@ class DatabaseManager(private val config: DatabaseConfig) {
         if (!initialized || !config.enabled) return emptyList()
 
         val qaPairs = mutableListOf<QAPair>()
-        val sql = "SELECT id, question, answer FROM qa_database.qa_pairs ORDER BY id"
+
+        // 先尝试带 category 查询，失败则回退到不带 category
+        val sqlWithCategory = "SELECT id, question, answer, category FROM qa_database.qa_pairs ORDER BY id"
+        val sqlWithoutCategory = "SELECT id, question, answer FROM qa_database.qa_pairs ORDER BY id"
 
         try {
             getConnection()?.use { conn ->
                 conn.createStatement().use { stmt ->
-                    stmt.executeQuery(sql).use { rs ->
-                        while (rs.next()) {
-                            qaPairs.add(
-                                QAPair(
-                                    id = rs.getInt("id"),
-                                    question = rs.getString("question"),
-                                    answer = rs.getString("answer")
+                    try {
+                        stmt.executeQuery(sqlWithCategory).use { rs ->
+                            while (rs.next()) {
+                                qaPairs.add(
+                                    QAPair(
+                                        id = rs.getInt("id"),
+                                        question = rs.getString("question"),
+                                        answer = rs.getString("answer"),
+                                        category = rs.getString("category") ?: ""
+                                    )
                                 )
-                            )
+                            }
+                        }
+                    } catch (_: Exception) {
+                        // category 列不存在，回退
+                        stmt.executeQuery(sqlWithoutCategory).use { rs ->
+                            while (rs.next()) {
+                                qaPairs.add(
+                                    QAPair(
+                                        id = rs.getInt("id"),
+                                        question = rs.getString("question"),
+                                        answer = rs.getString("answer"),
+                                        category = ""
+                                    )
+                                )
+                            }
                         }
                     }
                 }
@@ -326,6 +346,47 @@ class DatabaseManager(private val config: DatabaseConfig) {
             println("❌ 插入示例数据失败: ${e.message}")
             false
         }
+    }
+
+    /**
+     * 从JSON知识库同步数据到数据库
+     */
+    fun syncFromKnowledgeBase(items: List<com.lanzhou.qa.model.KnowledgeItem>): Int {
+        if (!initialized || !config.enabled) return 0
+
+        var synced = 0
+        // 先尝试添加 category 列（如果不存在）
+        try {
+            getConnection()?.use { conn ->
+                conn.createStatement().use { stmt ->
+                    stmt.executeUpdate("ALTER TABLE qa_database.qa_pairs ADD COLUMN IF NOT EXISTS category VARCHAR(50) NOT NULL DEFAULT ''")
+                }
+            }
+        } catch (_: Exception) {}
+
+        val sql = "REPLACE INTO qa_database.qa_pairs (id, question, answer, category) VALUES (?, ?, ?, ?)"
+
+        try {
+            getConnection()?.use { conn ->
+                conn.prepareStatement(sql).use { pstmt ->
+                    for (item in items) {
+                        pstmt.setInt(1, item.id)
+                        pstmt.setString(2, item.question)
+                        pstmt.setString(3, item.answer)
+                        pstmt.setString(4, item.category)
+                        pstmt.addBatch()
+                        synced++
+                    }
+                    pstmt.executeBatch()
+                }
+            }
+            println("✅ 同步了 $synced 条知识到数据库（含分类信息）")
+        } catch (e: Exception) {
+            println("❌ 同步知识库到数据库失败: ${e.message}")
+            synced = 0
+        }
+
+        return synced
     }
 
     /**

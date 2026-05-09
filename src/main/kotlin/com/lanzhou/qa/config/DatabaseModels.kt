@@ -11,7 +11,8 @@ import kotlinx.serialization.Serializable
 data class QAPair(
     val id: Int,
     val question: String,
-    val answer: String
+    val answer: String,
+    val category: String = ""
 )
 
 // chat_history 表对应的实体类

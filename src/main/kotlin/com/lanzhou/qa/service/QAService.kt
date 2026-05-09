@@ -75,11 +75,17 @@ class QAService {
 
         knowledgeItems = when (sourceType) {
             1 -> {
-                // 数据库模式
+                // 数据库模式：从数据库加载数据，但分类信息从JSON获取
                 if (databaseManager.initialize()) {
+                    val jsonItems = loadFromJson()
+                    if (jsonItems.isNotEmpty()) {
+                        databaseManager.syncFromKnowledgeBase(jsonItems)
+                    }
+                    // 构建 id -> category 映射（从JSON获取准确分类）
+                    val categoryMap = jsonItems.associateBy({ it.id }, { it.category })
                     val qaPairs = databaseManager.getAllQAPairs()
                     println("✅ 从数据库加载了 ${qaPairs.size} 条知识")
-                    qaPairs.map { KnowledgeItem(it.id, it.question, it.answer, "数据库") }
+                    qaPairs.map { KnowledgeItem(it.id, it.question, it.answer, categoryMap[it.id] ?: it.category.ifBlank { "未分类" }) }
                 } else {
                     println("⚠️ 数据库连接失败，回退到JSON模式")
                     loadFromJson()

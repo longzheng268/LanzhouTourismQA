@@ -28,6 +28,9 @@ import kotlin.math.min
 import com.lanzhou.qa.config.LanguageManager
 import com.lanzhou.qa.service.QAService
 import com.lanzhou.qa.ui.AudioWaveform
+import com.lanzhou.qa.ui.DonutChart
+import com.lanzhou.qa.ui.HorizontalBarChart
+import com.lanzhou.qa.ui.StatCard
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -807,7 +810,25 @@ fun buildAnswerBlocks(answer: String, imageBitmaps: List<ImageBitmap>): List<Ans
         "酿皮" to "兰州酿皮",
         "灰豆子" to "兰州灰豆子",
         "浆水面" to "兰州浆水面",
-        "炒面片" to "兰州炒面片"
+        "炒面片" to "兰州炒面片",
+        "丹霞" to "张掖七彩丹霞",
+        "敦煌" to "敦煌莫高窟",
+        "兰山" to "兰州兰山公园",
+        "铜奔马" to "甘肃省博物馆铜奔马",
+        "马踏飞燕" to "甘肃省博物馆铜奔马",
+        "黄河母亲" to "兰州黄河母亲雕塑",
+        "羊皮筏子" to "兰州黄河羊皮筏子",
+        "百合" to "兰州百合",
+        "玫瑰" to "兰州苦水玫瑰",
+        "刻葫芦" to "兰州刻葫芦艺术",
+        "三炮台" to "兰州三炮台盖碗茶",
+        "青城古镇" to "兰州青城古镇",
+        "河口古镇" to "兰州河口古镇",
+        "兴隆山" to "兰州兴隆山",
+        "什川" to "兰州什川古梨园",
+        "黄河石林" to "白银黄河石林",
+        "拉卜楞寺" to "甘南拉卜楞寺",
+        "甘南" to "甘南藏族风情"
     )
 
     // 找到关键词在段落中的位置
@@ -886,7 +907,12 @@ fun calculateRequiredImageCount(answer: String): Int {
         "中山桥" to true, "五泉山" to true, "甘肃省博物馆" to true,
         "兰州大学" to true, "西关" to true, "张掖路步行街" to true,
         "甜品" to true, "烤肉" to true, "酿皮" to true, "灰豆子" to true,
-        "浆水面" to true, "炒面片" to true
+        "浆水面" to true, "炒面片" to true, "丹霞" to true, "敦煌" to true,
+        "兰山" to true, "铜奔马" to true, "黄河母亲" to true,
+        "羊皮筏子" to true, "百合" to true, "玫瑰" to true,
+        "刻葫芦" to true, "三炮台" to true, "青城古镇" to true,
+        "河口古镇" to true, "兴隆山" to true, "什川" to true,
+        "黄河石林" to true, "甘南" to true, "拉卜楞寺" to true
     )
 
     var keywordCount = 0
@@ -907,14 +933,24 @@ fun buildFollowUpSuggestions(answer: String): List<String> {
     if (answer.isBlank()) return emptyList()
 
     val keywordPrompts = mapOf(
-        "牛肉面" to listOf("兰州牛肉面吃哪里最好？", "兰州牛肉面的制作方法？"),
-        "手抓羊肉" to listOf("手抓羊肉的吃法是什么？", "哪里可以吃到正宗手抓羊肉？"),
-        "黄河" to listOf("黄河边有哪些好玩地方？", "黄河夜景推荐？"),
-        "水车" to listOf("兰州黄河水车园好玩吗？", "黄河水车的故事？"),
-        "拉面" to listOf("兰州拉面的特点是什么？", "哪里有最好吃的兰州拉面？"),
-        "夜市" to listOf("兰州夜市推荐有哪些？", "兰州夜市必吃的小吃？"),
-        "酿皮" to listOf("兰州酿皮怎么吃？", "兰州酿皮好吃的店？"),
-        "灰豆子" to listOf("兰州灰豆子是什么？", "灰豆子怎么做？")
+        "牛肉面" to listOf("兰州牛肉面哪家最正宗？", "兰州牛肉面的历史有多久？"),
+        "手抓羊肉" to listOf("手抓羊肉哪里好吃？", "手抓羊肉的正确吃法？"),
+        "黄河" to listOf("黄河风情线有多长？", "黄河游船在哪里坐？"),
+        "水车" to listOf("兰州水车的历史是什么？", "水车博览园怎么样？"),
+        "拉面" to listOf("兰州拉面和牛肉面有什么区别？", "拉面师傅是怎么培训的？"),
+        "夜市" to listOf("兰州夜市推荐有哪些？", "正宁路夜市必吃的小吃？"),
+        "酿皮" to listOf("兰州酿皮和凉面有什么区别？", "酿皮哪家好吃？"),
+        "灰豆子" to listOf("兰州灰豆子是什么？", "灰豆子怎么做的？"),
+        "白塔山" to listOf("白塔山有什么传说？", "白塔山怎么上去？"),
+        "中山桥" to listOf("黄河铁桥的历史？", "中山桥夜景怎么样？"),
+        "博物馆" to listOf("甘肃省博物馆有什么镇馆之宝？", "兰州有什么博物馆值得参观？"),
+        "兰山" to listOf("兰山公园怎么去？", "兰山夜景好看吗？"),
+        "丹霞" to listOf("兰州到张掖丹霞怎么去？", "丹霞地貌什么时候去最美？"),
+        "敦煌" to listOf("兰州到敦煌怎么去？", "河西走廊怎么安排行程？"),
+        "甘南" to listOf("兰州到甘南怎么去？", "甘南有什么好玩的？"),
+        "三炮台" to listOf("三炮台茶是什么？", "兰州哪里喝三炮台？"),
+        "百合" to listOf("兰州百合有什么特点？", "百合在哪里买正宗？"),
+        "温泉" to listOf("兰州有什么温泉？", "冬天兰州有什么玩的？")
     )
 
     val suggestions = mutableListOf<String>()
@@ -926,10 +962,11 @@ fun buildFollowUpSuggestions(answer: String): List<String> {
 
     if (suggestions.isEmpty()) {
         suggestions += listOf(
+            "兰州有什么免费景点？",
             "兰州美食推荐",
-            "兰州景点推荐",
-            "兰州旅行攻略",
-            "兰州当地特色小吃"
+            "兰州两日游怎么安排？",
+            "兰州有什么特产可以带回家？",
+            "兰州的最佳旅游时间？"
         )
     }
 
@@ -1204,71 +1241,88 @@ fun StatsTab(service: QAService, stats: Map<String, Int>, currentLanguage: Strin
             Text(uiStrings.refresh)
         }
 
-        // 基础统计
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 12.dp)
+        // 数字卡片行
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Column(
-                modifier = Modifier.padding(16.dp)
-            ) {
-                Text(
-                    text = "📊 ${uiStrings.basic_stats}",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.primary
-                )
-                Spacer(modifier = Modifier.height(12.dp))
+            StatCard(
+                value = currentStats["totalItems"]?.toString() ?: "0",
+                label = uiStrings.total_items,
+                modifier = Modifier.weight(1f),
+                color = MaterialTheme.colorScheme.primary
+            )
+            StatCard(
+                value = currentStats["categories"]?.toString() ?: "0",
+                label = uiStrings.categories,
+                modifier = Modifier.weight(1f),
+                color = MaterialTheme.colorScheme.tertiary
+            )
+            StatCard(
+                value = if (currentStats["source"] == 1) "DB" else "JSON",
+                label = uiStrings.data_source,
+                modifier = Modifier.weight(1f),
+                color = MaterialTheme.colorScheme.secondary
+            )
+        }
 
-                StatsRow(uiStrings.total_items, currentStats["totalItems"]?.toString() ?: "0")
-                StatsRow(uiStrings.categories, currentStats["categories"]?.toString() ?: "0")
-                StatsRow(uiStrings.data_source, if (currentStats["source"] == 1) uiStrings.database_mode else uiStrings.json_mode)
+        // 分类数据
+        val categoryStats = currentStats.filter { it.key.startsWith("category_") }
+            .map { (key, value) -> key.removePrefix("category_") to value }
+            .sortedByDescending { it.second }
+
+        if (categoryStats.isNotEmpty()) {
+            // 环形图
+            Card(
+                modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        text = "分类占比",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    DonutChart(
+                        data = categoryStats,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
+
+            // 柱状图
+            Card(
+                modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        text = "分类详情",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    HorizontalBarChart(
+                        data = categoryStats,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
             }
         }
 
         // 数据库统计
         if (currentStats["source"] == 1) {
             Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 12.dp)
-            ) {
-                Column(
-                    modifier = Modifier.padding(16.dp)
-                ) {
-                    Text(
-                        text = "🗄️ ${uiStrings.db_stats}",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    StatsRow(uiStrings.db_qa_pairs, currentStats["db_qa_pairs"]?.toString() ?: "0")
-                    StatsRow(uiStrings.db_chat_history, currentStats["db_chat_history"]?.toString() ?: "0")
-                }
-            }
-        }
-
-        // 分类统计
-        val categoryStats = currentStats.filter { it.key.startsWith("category_") }
-        if (categoryStats.isNotEmpty()) {
-            Card(
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Column(
-                    modifier = Modifier.padding(16.dp)
-                ) {
+                Column(modifier = Modifier.padding(16.dp)) {
                     Text(
-                        text = "📚 ${uiStrings.category_stats}",
+                        text = "数据库统计",
                         style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.primary
                     )
                     Spacer(modifier = Modifier.height(12.dp))
-
-                    categoryStats.forEach { (key, value) ->
-                        val categoryName = key.removePrefix("category_")
-                        StatsRow(categoryName, "$value ${uiStrings.items}")
-                    }
+                    StatsRow(uiStrings.db_qa_pairs, currentStats["db_qa_pairs"]?.toString() ?: "0")
+                    StatsRow(uiStrings.db_chat_history, currentStats["db_chat_history"]?.toString() ?: "0")
                 }
             }
         }
