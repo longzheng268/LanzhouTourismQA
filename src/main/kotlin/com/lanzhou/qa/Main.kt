@@ -5,7 +5,9 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.VerticalScrollbar
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.rememberScrollbarAdapter
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Search
@@ -234,12 +236,12 @@ fun MainContent(service: QAService, stats: Map<String, Int>, currentLanguage: St
     LaunchedEffect(answer) {
         if (answer.isNotBlank() && answer != lastProcessedAnswer) {
             imageMessage = ""
-            imageProgressText = "正在生成图片..."
+            imageProgressText = ""
             imageLoadedCount = 0
             imageTotalCount = 0
+            imageBitmaps = emptyList()
+            imageUrls = emptyList()
             followUpSuggestions = buildFollowUpSuggestions(answer)
-
-            generateAndLoadImages(answer)
             lastProcessedAnswer = answer
         }
     }
@@ -439,12 +441,16 @@ fun QATab(
         }
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(12.dp)
-            .verticalScroll(rememberScrollState())
-    ) {
+    val scrollState = rememberScrollState()
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(end = 12.dp)
+                .padding(12.dp)
+                .verticalScroll(scrollState)
+        ) {
         // 问题输入区域
         Card(
             modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)
@@ -684,6 +690,83 @@ fun QATab(
                             primaryColor = MaterialTheme.colorScheme.primary
                         )
                     }
+
+                    // 音色选择区域
+                    var voiceExpanded by remember { mutableStateOf(false) }
+                    var showCustomInput by remember { mutableStateOf(false) }
+                    var customVoiceText by remember { mutableStateOf("") }
+                    val presets = remember { service.getVoicePresets() }
+                    var selectedPresetName by remember {
+                        mutableStateOf(
+                            presets.find { it.style == service.getVoiceStyle() }?.name ?: "自定义"
+                        )
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text("音色:", style = MaterialTheme.typography.bodyMedium)
+                        Box {
+                            OutlinedButton(onClick = { voiceExpanded = true }) {
+                                Text(selectedPresetName)
+                            }
+                            DropdownMenu(
+                                expanded = voiceExpanded,
+                                onDismissRequest = { voiceExpanded = false }
+                            ) {
+                                presets.forEach { preset ->
+                                    DropdownMenuItem(
+                                        text = { Text(preset.name) },
+                                        onClick = {
+                                            selectedPresetName = preset.name
+                                            service.setVoiceStyle(preset.style)
+                                            service.setVoiceSeed(preset.seed)
+                                            showCustomInput = false
+                                            voiceExpanded = false
+                                        }
+                                    )
+                                }
+                                DropdownMenuItem(
+                                    text = { Text("自定义...") },
+                                    onClick = {
+                                        showCustomInput = true
+                                        voiceExpanded = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+
+                    if (showCustomInput) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            OutlinedTextField(
+                                value = customVoiceText,
+                                onValueChange = { customVoiceText = it },
+                                modifier = Modifier.weight(1f),
+                                placeholder = { Text("输入音色描述，如: Give me a deep male voice...") },
+                                singleLine = true
+                            )
+                            Button(
+                                onClick = {
+                                    if (customVoiceText.isNotBlank()) {
+                                        service.setVoiceStyle(customVoiceText)
+                                        service.setVoiceSeed(0)
+                                        selectedPresetName = "自定义"
+                                    }
+                                },
+                                enabled = customVoiceText.isNotBlank()
+                            ) {
+                                Text("应用")
+                            }
+                        }
+                    }
+
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)
@@ -754,6 +837,12 @@ fun QATab(
             }
         }
     }
+
+        VerticalScrollbar(
+            modifier = Modifier.align(Alignment.CenterEnd).fillMaxHeight(),
+            adapter = rememberScrollbarAdapter(scrollState)
+        )
+    }
 }
 
 fun loadImageBitmapFromPath(pathOrUrl: String): ImageBitmap? {
@@ -778,119 +867,15 @@ fun buildAnswerBlocks(answer: String, imageBitmaps: List<ImageBitmap>): List<Ans
         .map { it.trim() }
         .filter { it.isNotBlank() }
 
-    if (paragraphs.isEmpty()) {
-        return listOf(TextBlock(answer)) + imageBitmaps.map { ImageBlock(it, generateImageDescription(it)) }
-    }
-
-    val result = mutableListOf<AnswerBlock>()
-    val imageCount = imageBitmaps.size
-    if (imageCount == 0) {
-        paragraphs.forEach { result.add(TextBlock(it)) }
-        return result
-    }
-
-    // 兰州旅游关键词映射
-    val keywordMap = mapOf(
-        "牛肉面" to "兰州特色牛肉面",
-        "手抓羊肉" to "兰州手抓羊肉",
-        "黄河" to "兰州黄河风光",
-        "水车" to "兰州黄河水车",
-        "拉面" to "兰州牛肉拉面",
-        "羊肉" to "兰州羊肉美食",
-        "夜市" to "兰州夜市小吃",
-        "白塔山" to "兰州白塔山公园",
-        "中山桥" to "兰州中山铁桥",
-        "五泉山" to "兰州五泉山",
-        "甘肃省博物馆" to "甘肃省博物馆",
-        "兰州大学" to "兰州大学校园",
-        "西关" to "兰州西关十字",
-        "张掖路步行街" to "兰州张掖路步行街",
-        "甜品" to "兰州特色甜品",
-        "烤肉" to "兰州烤肉",
-        "酿皮" to "兰州酿皮",
-        "灰豆子" to "兰州灰豆子",
-        "浆水面" to "兰州浆水面",
-        "炒面片" to "兰州炒面片",
-        "丹霞" to "张掖七彩丹霞",
-        "敦煌" to "敦煌莫高窟",
-        "兰山" to "兰州兰山公园",
-        "铜奔马" to "甘肃省博物馆铜奔马",
-        "马踏飞燕" to "甘肃省博物馆铜奔马",
-        "黄河母亲" to "兰州黄河母亲雕塑",
-        "羊皮筏子" to "兰州黄河羊皮筏子",
-        "百合" to "兰州百合",
-        "玫瑰" to "兰州苦水玫瑰",
-        "刻葫芦" to "兰州刻葫芦艺术",
-        "三炮台" to "兰州三炮台盖碗茶",
-        "青城古镇" to "兰州青城古镇",
-        "河口古镇" to "兰州河口古镇",
-        "兴隆山" to "兰州兴隆山",
-        "什川" to "兰州什川古梨园",
-        "黄河石林" to "白银黄河石林",
-        "拉卜楞寺" to "甘南拉卜楞寺",
-        "甘南" to "甘南藏族风情"
-    )
-
-    // 找到关键词在段落中的位置
-    val keywordPositions = mutableListOf<Pair<Int, String>>()
-    paragraphs.forEachIndexed { index, paragraph ->
-        keywordMap.forEach { (keyword, description) ->
-            if (paragraph.contains(keyword) && keywordPositions.none { it.first == index }) {
-                keywordPositions.add(index to description)
-            }
-        }
-    }
-
-    // 如果没有找到关键词，使用均匀分布
-    if (keywordPositions.isEmpty()) {
-        val positions = mutableListOf<Int>()
-        val paragraphCount = paragraphs.size
-        val interval = paragraphCount.toDouble() / (imageCount + 1)
-        for (i in 1..imageCount) {
-            val pos = min(paragraphCount - 1, floor(interval * i).toInt())
-            positions.add(pos)
-        }
-
-        var imageIndex = 0
-        paragraphs.forEachIndexed { index, paragraph ->
-            result.add(TextBlock(paragraph))
-            while (imageIndex < imageCount && positions[imageIndex] == index) {
-                result.add(ImageBlock(imageBitmaps[imageIndex], generateImageDescription(imageBitmaps[imageIndex])))
-                imageIndex++
-            }
-        }
-
-        while (imageIndex < imageCount) {
-            result.add(ImageBlock(imageBitmaps[imageIndex], generateImageDescription(imageBitmaps[imageIndex])))
-            imageIndex++
-        }
+    val textBlocks: List<AnswerBlock> = if (paragraphs.isEmpty()) {
+        listOf(TextBlock(answer))
     } else {
-        // 根据关键词位置插入图片
-        val usedPositions = mutableSetOf<Int>()
-        var imageIndex = 0
-
-        paragraphs.forEachIndexed { index, paragraph ->
-            result.add(TextBlock(paragraph))
-
-            // 检查是否有关键词匹配这个段落
-            val matchingKeywords = keywordPositions.filter { it.first == index }
-            matchingKeywords.forEach { (_, description) ->
-                if (imageIndex < imageCount && !usedPositions.contains(index)) {
-                    result.add(ImageBlock(imageBitmaps[imageIndex], description))
-                    usedPositions.add(index)
-                    imageIndex++
-                }
-            }
-        }
-
-        // 如果还有剩余图片，添加到最后
-        while (imageIndex < imageCount) {
-            result.add(ImageBlock(imageBitmaps[imageIndex], generateImageDescription(imageBitmaps[imageIndex])))
-            imageIndex++
-        }
+        paragraphs.map { TextBlock(it) }
     }
 
-    return result
+    val imageBlocks: List<AnswerBlock> = imageBitmaps.map { ImageBlock(it, generateImageDescription(it)) }
+
+    return textBlocks + imageBlocks
 }
 
 fun calculateRequiredImageCount(answer: String): Int {

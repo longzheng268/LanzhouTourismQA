@@ -28,6 +28,9 @@ class TTSClient(private val config: TTSConfig) {
 
     private val json = Json { ignoreUnknownKeys = true }
 
+    var currentVoiceStyle: String = config.voice_style
+    var currentSeed: Int = 0
+
     @Volatile
     private var isPlaying = false
 
@@ -63,11 +66,11 @@ class TTSClient(private val config: TTSConfig) {
             return false
         }
 
+        // 确保上一次播放状态完全清除
         shouldStop = false
         isPlaying = true
 
         return try {
-            // 先尝试非流式调用（更可靠），失败再尝试流式
             val success = speakNonStream(text)
             if (!success) {
                 println("🔊 非流式调用失败，尝试流式调用...")
@@ -89,17 +92,17 @@ class TTSClient(private val config: TTSConfig) {
             putJsonArray("messages") {
                 addJsonObject {
                     put("role", "user")
-                    put("content", config.voice_style)
-                }
-                addJsonObject {
-                    put("role", "assistant")
-                    put("content", text)
+                    put("content", "$currentVoiceStyle\n\n$text")
                 }
             }
             putJsonObject("audio") {
                 put("format", "wav")
             }
             put("stream", false)
+            put("temperature", 0.1)
+            if (currentSeed > 0) {
+                put("seed", currentSeed)
+            }
         }
 
         val requestJson = requestBody.toString()
@@ -166,17 +169,17 @@ class TTSClient(private val config: TTSConfig) {
             putJsonArray("messages") {
                 addJsonObject {
                     put("role", "user")
-                    put("content", config.voice_style)
-                }
-                addJsonObject {
-                    put("role", "assistant")
-                    put("content", text)
+                    put("content", "$currentVoiceStyle\n\n$text")
                 }
             }
             putJsonObject("audio") {
                 put("format", "pcm16")
             }
             put("stream", true)
+            put("temperature", 0.1)
+            if (currentSeed > 0) {
+                put("seed", currentSeed)
+            }
         }
 
         val requestJson = requestBody.toString()

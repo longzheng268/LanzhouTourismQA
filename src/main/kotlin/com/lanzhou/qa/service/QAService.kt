@@ -10,6 +10,8 @@ import com.lanzhou.qa.api.ImageClient
 import com.lanzhou.qa.embedding.EmbeddingModel
 import com.lanzhou.qa.model.ImageConfig
 import com.lanzhou.qa.model.KnowledgeItem
+import com.lanzhou.qa.model.VoicePreset
+import com.lanzhou.qa.model.defaultVoicePresets
 import com.lanzhou.qa.rag.RAGRetriever
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -371,9 +373,23 @@ class QAService {
                 .replace(Regex("[#*]"), "")
                 .replace(Regex("\\s{2,}"), " ")
                 .trim()
-            ttsClient.speak(cleanedText)
+            // TTS 模型有 token 上限，超长文本截取前 500 字
+            val truncated = if (cleanedText.length > 500) cleanedText.take(500) else cleanedText
+            ttsClient.speak(truncated)
         }
     }
+
+    fun setVoiceStyle(style: String) {
+        ttsClient.currentVoiceStyle = style
+    }
+
+    fun setVoiceSeed(seed: Int) {
+        ttsClient.currentSeed = seed
+    }
+
+    fun getVoiceStyle(): String = ttsClient.currentVoiceStyle
+
+    fun getVoicePresets(): List<VoicePreset> = defaultVoicePresets
 
     var onAmplitudeUpdate: ((List<Float>) -> Unit)?
         get() = ttsClient.onAmplitudeUpdate
