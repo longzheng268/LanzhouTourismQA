@@ -54,8 +54,10 @@ data class TTSConfig(
     val enabled: Boolean = false,
     val api_url: String = "",
     val api_key: String = "",
-    val model: String = "mimo-v2.5-tts-voicedesign",
-    val voice_style: String = "Give me a young female tone.",
+    val api_secret: String = "",
+    val app_id: String = "",
+    val model: String = "xfyun",
+    val voice_style: String = "x4_mingge",
     val request_timeout_ms: Long = 60000
 )
 
@@ -138,13 +140,8 @@ data class RetrievalResult(
 data class VoicePreset(val name: String, val style: String, val seed: Int = 0)
 
 val defaultVoicePresets = listOf(
-    VoicePreset("年轻女声", "Give me a young female tone.", seed = 42),
-    VoicePreset("成熟男声", "Give me a mature male tone with a calm and steady voice.", seed = 88),
-    VoicePreset("儿童声", "Give me a child's voice, cheerful and energetic.", seed = 123),
-    VoicePreset("温柔女声", "Give me a soft and gentle female voice.", seed = 256),
-    VoicePreset("东北话", "用东北方言说话。语调上扬，带有明显的儿化音，四声经常变成二声，语气豪爽直接，像哈尔滨本地人一样说话。", seed = 501),
-    VoicePreset("广东话", "用广东人说普通话的口音说话。n和l不分，平翘舌不分（zh/ch/sh说成z/c/s），带有粤语的柔和鼻音和独特节奏感。", seed = 602),
-    VoicePreset("甘肃话", "用甘肃兰州方言说话。平翘舌不分，前后鼻音混淆，没有儿化音，语速偏慢，语调平稳，带有西北方言特有的浑厚质朴感。", seed = 703),
+    VoicePreset("年轻女声", "x4_yeting", seed = 42),
+    VoicePreset("成熟男声", "x4_mingge", seed = 88),
 )
 
 // TTS 流式请求模型

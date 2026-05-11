@@ -11,8 +11,13 @@ import kotlinx.coroutines.*
 import kotlinx.serialization.json.*
 import java.io.ByteArrayOutputStream
 import java.io.File
+import java.net.URL
 import java.util.Base64
+import javax.crypto.Mac
+import javax.crypto.spec.SecretKeySpec
 import javax.sound.sampled.*
+import java.text.SimpleDateFormat
+import java.util.*
 
 class TTSClient(private val config: TTSConfig) {
 
@@ -61,22 +66,34 @@ class TTSClient(private val config: TTSConfig) {
     }
 
     suspend fun speak(text: String): Boolean {
-        if (!config.enabled || config.api_url.isBlank()) {
-            println("⚠️ TTS 未启用或 URL 未配置")
+        if (!config.enabled || config.app_id.isBlank()) {
+            println("⚠️ TTS 未启用或 app_id 未配置, enabled=${config.enabled}, app_id='${config.app_id}'")
             return false
         }
 
-        // 确保上一次播放状态完全清除
+        println("🔊 TTS speak() 被调用, 文本长度: ${text.length}, vcn: $currentVoiceStyle")
         shouldStop = false
         isPlaying = true
 
         return try {
-            val success = speakNonStream(text)
-            if (!success) {
-                println("🔊 非流式调用失败，尝试流式调用...")
-                speakStream(text)
+            val taskId = createTask(text)
+            if (taskId != null) {
+                val audioUrl = queryTask(taskId)
+                if (audioUrl != null) {
+                    val audioBytes = downloadAudio(audioUrl)
+                    if (audioBytes != null && !shouldStop) {
+                        playAudioData(audioBytes)
+                    } else {
+                        isPlaying = false
+                        false
+                    }
+                } else {
+                    isPlaying = false
+                    false
+                }
             } else {
-                success
+                isPlaying = false
+                false
             }
         } catch (e: Exception) {
             println("❌ TTS 异常: ${e.javaClass.simpleName} - ${e.message}")
@@ -86,337 +103,232 @@ class TTSClient(private val config: TTSConfig) {
         }
     }
 
-    private suspend fun speakNonStream(text: String): Boolean {
-        val requestBody = buildJsonObject {
-            put("model", config.model)
-            putJsonArray("messages") {
-                addJsonObject {
-                    put("role", "user")
-                    put("content", "$currentVoiceStyle\n\n$text")
-                }
-            }
-            putJsonObject("audio") {
-                put("format", "wav")
-            }
-            put("stream", false)
-            put("temperature", 0.1)
-            if (currentSeed > 0) {
-                put("seed", currentSeed)
-            }
-        }
+    private suspend fun createTask(text: String): String? {
+        return withContext(Dispatchers.IO) {
+            try {
+                val host = "api-dx.xf-yun.com"
+                val path = "/v1/private/dts_create"
+                val date = getRFC1123Date()
+                val authUrl = buildAuthUrl(host, path, date)
 
-        val requestJson = requestBody.toString()
-        println("🔊 TTS 非流式请求: ${config.api_url}")
-        println("🔊 模型: ${config.model}")
+                val encodedText = Base64.getEncoder().encodeToString(text.toByteArray(Charsets.UTF_8))
 
-        val response = client.post(config.api_url) {
-            header("api-key", config.api_key)
-            header("Authorization", "Bearer ${config.api_key}")
-            contentType(ContentType.Application.Json)
-            setBody(requestJson)
-        }
-
-        println("🔊 TTS 响应状态: ${response.status}")
-
-        if (response.status.value != 200) {
-            val errorBody = response.bodyAsText()
-            println("❌ TTS API 失败: $errorBody")
-            isPlaying = false
-            return false
-        }
-
-        val responseText = response.bodyAsText()
-        println("🔊 响应长度: ${responseText.length} 字符")
-
-        return try {
-            val responseJson = json.parseToJsonElement(responseText).jsonObject
-            val choices = responseJson["choices"]?.jsonArray
-            val message = choices?.firstOrNull()?.jsonObject?.get("message")?.jsonObject
-            val audio = message?.get("audio")?.jsonObject
-            val audioDataBase64 = audio?.get("data")?.jsonPrimitive?.content
-
-            if (audioDataBase64 != null) {
-                println("🔊 收到音频数据: ${audioDataBase64.length} 字符 base64")
-                val audioBytes = Base64.getDecoder().decode(audioDataBase64)
-                println("🔊 解码后: ${audioBytes.size} 字节")
-
-                if (shouldStop) {
-                    isPlaying = false
-                    return false
-                }
-
-                // WAV 格式可以直接用 AudioSystem 播放
-                val success = playWavData(audioBytes)
-                isPlaying = false
-                return success
-            } else {
-                println("❌ 响应中未找到 audio.data 字段")
-                println("🔊 [调试] 响应结构: ${responseText.take(500)}")
-                isPlaying = false
-                false
-            }
-        } catch (e: Exception) {
-            println("❌ 解析非流式响应失败: ${e.message}")
-            println("🔊 [调试] 响应内容: ${responseText.take(500)}")
-            isPlaying = false
-            false
-        }
-    }
-
-    private suspend fun speakStream(text: String): Boolean {
-        val requestBody = buildJsonObject {
-            put("model", config.model)
-            putJsonArray("messages") {
-                addJsonObject {
-                    put("role", "user")
-                    put("content", "$currentVoiceStyle\n\n$text")
-                }
-            }
-            putJsonObject("audio") {
-                put("format", "pcm16")
-            }
-            put("stream", true)
-            put("temperature", 0.1)
-            if (currentSeed > 0) {
-                put("seed", currentSeed)
-            }
-        }
-
-        val requestJson = requestBody.toString()
-        println("🔊 TTS 流式请求: ${config.api_url}")
-
-        val statement = client.preparePost(config.api_url) {
-            header("api-key", config.api_key)
-            header("Authorization", "Bearer ${config.api_key}")
-            header("Content-Type", "application/json")
-            header("Accept", "text/event-stream")
-            setBody(requestJson)
-        }
-
-        return statement.execute { response ->
-            println("🔊 TTS 流式响应状态: ${response.status}")
-
-            if (response.status.value != 200) {
-                val errorBody = response.bodyAsText()
-                println("❌ TTS 流式 API 失败: $errorBody")
-                isPlaying = false
-                return@execute false
-            }
-
-            val allPcmData = ByteArrayOutputStream()
-            val channel = response.bodyAsChannel()
-            val lineBuffer = StringBuilder()
-            var chunkCount = 0
-            var totalAudioBytes = 0
-
-            while (!channel.isClosedForRead && !shouldStop) {
-                val buf = ByteArray(8192)
-                val bytesRead = channel.readAvailable(buf, 0, buf.size)
-                if (bytesRead <= 0) continue
-
-                val decoded = String(buf, 0, bytesRead)
-                lineBuffer.append(decoded)
-
-                while (true) {
-                    val lineEnd = findLineEnd(lineBuffer)
-                    if (lineEnd == -1) break
-
-                    val line = lineBuffer.substring(0, lineEnd).trim()
-                    lineBuffer.delete(0, lineEnd + 1)
-
-                    if (line.isEmpty()) continue
-                    if (line == "data: [DONE]") break
-
-                    if (line.startsWith("data: ")) {
-                        val data = line.substring(6)
-                        chunkCount++
-
-                        try {
-                            val chunkJson = json.parseToJsonElement(data).jsonObject
-                            val choices = chunkJson["choices"]?.jsonArray
-                            val delta = choices?.firstOrNull()?.jsonObject?.get("delta")?.jsonObject
-                            val audio = delta?.get("audio")?.jsonObject
-                            val audioData = audio?.get("data")?.jsonPrimitive?.content
-
-                            if (audioData != null) {
-                                val pcmBytes = Base64.getDecoder().decode(audioData)
-                                allPcmData.write(pcmBytes)
-                                totalAudioBytes += pcmBytes.size
-                            } else if (chunkCount <= 3) {
-                                println("🔊 [调试] chunk #$chunkCount: ${data.take(200)}")
+                val requestBody = buildJsonObject {
+                    putJsonObject("header") {
+                        put("app_id", config.app_id)
+                    }
+                    putJsonObject("parameter") {
+                        putJsonObject("dts") {
+                            put("vcn", currentVoiceStyle)
+                            put("language", "zh")
+                            put("speed", 50)
+                            put("volume", 50)
+                            put("pitch", 50)
+                            put("rhy", 0)
+                            putJsonObject("audio") {
+                                put("encoding", "raw")
+                                put("sample_rate", 16000)
+                                put("channels", 1)
+                                put("bit_depth", 16)
                             }
-                        } catch (e: Exception) {
-                            if (chunkCount <= 3) {
-                                println("⚠️ [调试] chunk #$chunkCount 解析失败: ${e.message}")
+                            putJsonObject("pybuf") {
+                                put("encoding", "utf8")
+                                put("compress", "raw")
+                                put("format", "plain")
                             }
                         }
                     }
+                    putJsonObject("payload") {
+                        putJsonObject("text") {
+                            put("encoding", "utf8")
+                            put("compress", "raw")
+                            put("format", "plain")
+                            put("text", encodedText)
+                        }
+                    }
                 }
+
+                println("🔊 TTS 创建任务请求: $authUrl")
+
+                val response = client.post(authUrl) {
+                    contentType(ContentType.Application.Json)
+                    setBody(requestBody.toString())
+                }
+
+                val responseText = response.bodyAsText()
+                println("🔊 创建任务响应: $responseText")
+
+                val responseJson = json.parseToJsonElement(responseText).jsonObject
+                val code = responseJson["header"]?.jsonObject?.get("code")?.jsonPrimitive?.int
+                val taskId = responseJson["header"]?.jsonObject?.get("task_id")?.jsonPrimitive?.content
+
+                if (code == 0 && taskId != null) {
+                    println("✅ 任务创建成功: $taskId")
+                    taskId
+                } else {
+                    println("❌ 任务创建失败: code=$code")
+                    null
+                }
+            } catch (e: Exception) {
+                println("❌ 创建任务异常: ${e.message}")
+                null
             }
-
-            println("🔊 流读取完毕: ${chunkCount} 个 chunk, 共 ${totalAudioBytes} 字节 PCM")
-
-            if (totalAudioBytes == 0) {
-                println("❌ 未收到任何音频数据")
-                isPlaying = false
-                return@execute false
-            }
-
-            val pcmData = allPcmData.toByteArray()
-            if (shouldStop) {
-                isPlaying = false
-                return@execute false
-            }
-
-            val success = playPcmData(pcmData)
-            isPlaying = false
-            success
         }
     }
 
-    private fun playWavData(wavBytes: ByteArray): Boolean {
-        return try {
-            val audioStream = AudioSystem.getAudioInputStream(wavBytes.inputStream())
-            val format = audioStream.format
-            println("🔊 WAV 格式: ${format.sampleRate}Hz, ${format.sampleSizeInBits}bit, ${format.channels}ch")
+    private suspend fun queryTask(taskId: String): String? {
+        return withContext(Dispatchers.IO) {
+            try {
+                val host = "api-dx.xf-yun.com"
+                val path = "/v1/private/dts_query"
 
+                for (attempt in 1..30) {
+                    delay(1000)
+
+                    val date = getRFC1123Date()
+                    val authUrl = buildAuthUrl(host, path, date)
+
+                    val requestBody = buildJsonObject {
+                        putJsonObject("header") {
+                            put("app_id", config.app_id)
+                            put("task_id", taskId)
+                        }
+                    }
+
+                    println("🔊 查询任务 (第 $attempt 次): $taskId")
+
+                    val response = client.post(authUrl) {
+                        contentType(ContentType.Application.Json)
+                        setBody(requestBody.toString())
+                    }
+
+                    val responseText = response.bodyAsText()
+                    val responseJson = json.parseToJsonElement(responseText).jsonObject
+                    val code = responseJson["header"]?.jsonObject?.get("code")?.jsonPrimitive?.int
+                    val taskStatus = responseJson["header"]?.jsonObject?.get("task_status")?.jsonPrimitive?.content
+
+                    if (code == 0) {
+                        if (taskStatus == "5") {
+                            val audioBase64 = responseJson["payload"]?.jsonObject?.get("audio")?.jsonObject?.get("audio")?.jsonPrimitive?.content
+                            if (audioBase64 != null) {
+                                val audioUrl = String(Base64.getDecoder().decode(audioBase64), Charsets.UTF_8)
+                                println("✅ 任务完成，音频URL: $audioUrl")
+                                return@withContext audioUrl
+                            }
+                        } else {
+                            println("⏳ 任务处理中，状态: $taskStatus")
+                        }
+                    } else {
+                        println("❌ 查询失败: code=$code")
+                    }
+                }
+
+                println("❌ 任务查询超时")
+                null
+            } catch (e: Exception) {
+                println("❌ 查询任务异常: ${e.message}")
+                null
+            }
+        }
+    }
+
+    private suspend fun downloadAudio(audioUrl: String): ByteArray? {
+        return withContext(Dispatchers.IO) {
+            try {
+                println("🔊 下载音频: $audioUrl")
+                val response = client.get(audioUrl)
+                val audioBytes = response.readBytes()
+                println("🔊 音频下载完成: ${audioBytes.size} 字节")
+                audioBytes
+            } catch (e: Exception) {
+                println("❌ 下载音频异常: ${e.message}")
+                null
+            }
+        }
+    }
+
+    private fun playAudioData(audioBytes: ByteArray): Boolean {
+        return try {
+            // 先尝试用 AudioSystem 直接播放（WAV/MP3等格式）
+            try {
+                val audioStream = AudioSystem.getAudioInputStream(audioBytes.inputStream())
+                val format = audioStream.format
+                println("🔊 音频格式: ${format.sampleRate}Hz, ${format.sampleSizeInBits}bit, ${format.channels}ch")
+                val info = DataLine.Info(SourceDataLine::class.java, format)
+                val line = AudioSystem.getLine(info) as SourceDataLine
+                line.open(format)
+                line.start()
+                println("🔊 开始播放音频...")
+                val buffer = ByteArray(4096)
+                var bytesRead: Int
+                while (audioStream.read(buffer).also { bytesRead = it } != -1 && !shouldStop) {
+                    line.write(buffer, 0, bytesRead)
+                    onAmplitudeUpdate?.invoke(computeAmplitudes(buffer, bytesRead, format.channels))
+                }
+                if (!shouldStop) line.drain()
+                line.stop()
+                line.close()
+                audioStream.close()
+                println("🔊 播放完成")
+                isPlaying = false
+                return true
+            } catch (e: Exception) {
+                println("⚠️ AudioSystem 播放失败，尝试 PCM 方式: ${e.message}")
+            }
+
+            // 降级：当作 PCM raw 数据播放（16bit, 16000Hz, mono）
+            val format = AudioFormat(16000f, 16, 1, true, false)
             val info = DataLine.Info(SourceDataLine::class.java, format)
             val line = AudioSystem.getLine(info) as SourceDataLine
             line.open(format)
             line.start()
-            println("🔊 开始播放 WAV 音频...")
-
-            val buffer = ByteArray(4096)
-            var bytesRead: Int
-            while (audioStream.read(buffer).also { bytesRead = it } != -1 && !shouldStop) {
-                line.write(buffer, 0, bytesRead)
-                onAmplitudeUpdate?.invoke(computeAmplitudes(buffer, bytesRead, format.channels))
-            }
-
-            if (!shouldStop) {
-                line.drain()
-            }
-            line.stop()
-            line.close()
-            audioStream.close()
-            println("🔊 播放完成")
-            true
-        } catch (e: Exception) {
-            println("❌ WAV 播放异常: ${e.message}, 尝试 PCM 方式...")
-            playPcmData(wavBytes)
-        }
-    }
-
-    private fun playPcmData(pcmData: ByteArray): Boolean {
-        // 常见 TTS 采样率，从最可能的开始尝试
-        val sampleRates = listOf(24000f, 16000f, 22050f, 44100f, 48000f)
-
-        for (sampleRate in sampleRates) {
-            val format = AudioFormat(sampleRate, 16, 1, true, false)
-            val info = DataLine.Info(SourceDataLine::class.java, format)
-
-            if (AudioSystem.isLineSupported(info)) {
-                println("🔊 使用采样率: ${sampleRate}Hz, 数据量: ${pcmData.size} 字节, 时长约: ${pcmData.size / (sampleRate * 2)} 秒")
-                return playWithFormat(pcmData, format)
-            } else {
-                println("⚠️ 采样率 ${sampleRate}Hz 不支持，尝试下一个...")
-            }
-        }
-
-        println("❌ 所有采样率都不支持，尝试保存为 WAV 文件播放")
-        return playAsWav(pcmData)
-    }
-
-    /**
-     * 使用 SourceDataLine 播放
-     */
-    private fun playWithFormat(pcmData: ByteArray, format: AudioFormat): Boolean {
-        var line: SourceDataLine? = null
-        return try {
-            line = AudioSystem.getLine(DataLine.Info(SourceDataLine::class.java, format)) as SourceDataLine
-            line.open(format)
-            line.start()
-            println("🔊 开始播放音频...")
-
-            // 分块写入，以便能响应停止
-            val chunkSize = 4096
+            println("🔊 PCM 方式播放, 数据量: ${audioBytes.size} 字节")
             var offset = 0
-            while (offset < pcmData.size && !shouldStop) {
-                val len = minOf(chunkSize, pcmData.size - offset)
-                line.write(pcmData, offset, len)
-                onAmplitudeUpdate?.invoke(computeAmplitudes(pcmData.copyOfRange(offset, offset + len), len))
+            val chunkSize = 4096
+            while (offset < audioBytes.size && !shouldStop) {
+                val len = minOf(chunkSize, audioBytes.size - offset)
+                line.write(audioBytes, offset, len)
+                onAmplitudeUpdate?.invoke(computeAmplitudes(audioBytes.copyOfRange(offset, offset + len), len))
                 offset += len
             }
-
-            if (!shouldStop) {
-                line.drain()
-            }
+            if (!shouldStop) line.drain()
             line.stop()
             line.close()
             println("🔊 播放完成")
+            isPlaying = false
             true
         } catch (e: Exception) {
             println("❌ 播放异常: ${e.message}")
-            try { line?.close() } catch (_: Exception) {}
+            isPlaying = false
             false
         }
     }
 
-    /**
-     * 降级方案：保存为 WAV 文件然后用系统播放器打开
-     */
-    private fun playAsWav(pcmData: ByteArray): Boolean {
-        return try {
-            // 尝试多个采样率写 WAV
-            val sampleRates = listOf(24000f, 16000f, 22050f)
-            for (sampleRate in sampleRates) {
-                try {
-                    val format = AudioFormat(sampleRate, 16, 1, true, false)
-                    val wavFile = File.createTempFile("tts_audio_", ".wav")
-                    writeWavFile(wavFile, pcmData, format)
-                    println("🔊 WAV 文件已保存: ${wavFile.absolutePath}")
-
-                    // 尝试用系统默认播放器打开
-                    if (java.awt.Desktop.isDesktopSupported()) {
-                        java.awt.Desktop.getDesktop().open(wavFile)
-                        println("🔊 已用系统播放器打开 WAV 文件")
-                        // 等待播放
-                        val durationMs = (pcmData.size / (sampleRate * 2) * 1000).toLong()
-                        Thread.sleep(minOf(durationMs + 1000, 60000))
-                        return true
-                    }
-                } catch (e: Exception) {
-                    println("⚠️ WAV 采样率 ${sampleRate} 失败: ${e.message}")
-                }
-            }
-            false
-        } catch (e: Exception) {
-            println("❌ WAV 降级播放失败: ${e.message}")
-            false
-        }
+    private fun buildAuthUrl(host: String, path: String, date: String): String {
+        val authParams = buildAuthParams(host, path, date)
+        return "https://$host$path?${authParams.entries.joinToString("&") { "${it.key}=${java.net.URLEncoder.encode(it.value, "UTF-8")}" }}"
     }
 
-    /**
-     * 将 PCM 数据写入 WAV 文件
-     */
-    private fun writeWavFile(file: File, pcmData: ByteArray, format: AudioFormat) {
-        val audioInputStream = AudioInputStream(
-            pcmData.inputStream(),
-            format,
-            pcmData.size.toLong() / format.frameSize
+    private fun buildAuthParams(host: String, path: String, date: String): Map<String, String> {
+        val signatureOrigin = "host: $host\ndate: $date\nPOST $path HTTP/1.1"
+        val mac = Mac.getInstance("HmacSHA256")
+        mac.init(SecretKeySpec(config.api_secret.toByteArray(Charsets.UTF_8), "HmacSHA256"))
+        val signature = Base64.getEncoder().encodeToString(mac.doFinal(signatureOrigin.toByteArray(Charsets.UTF_8)))
+
+        val authorizationOrigin = "api_key=\"${config.api_key}\", algorithm=\"hmac-sha256\", headers=\"host date request-line\", signature=\"$signature\""
+        val authorization = Base64.getEncoder().encodeToString(authorizationOrigin.toByteArray(Charsets.UTF_8))
+
+        return mapOf(
+            "host" to host,
+            "date" to date,
+            "authorization" to authorization
         )
-        AudioSystem.write(audioInputStream, AudioFileFormat.Type.WAVE, file)
-        audioInputStream.close()
     }
 
-    /**
-     * 在 StringBuilder 中查找行结束符 (\n 或 \r\n)
-     */
-    private fun findLineEnd(sb: StringBuilder): Int {
-        for (i in 0 until sb.length) {
-            if (sb[i] == '\n') return i
-        }
-        return -1
+    private fun getRFC1123Date(): String {
+        val sdf = SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ss z", Locale.ENGLISH)
+        sdf.timeZone = TimeZone.getTimeZone("GMT")
+        return sdf.format(Date())
     }
 
     fun stop() {

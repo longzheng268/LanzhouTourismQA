@@ -693,12 +693,10 @@ fun QATab(
 
                     // 音色选择区域
                     var voiceExpanded by remember { mutableStateOf(false) }
-                    var showCustomInput by remember { mutableStateOf(false) }
-                    var customVoiceText by remember { mutableStateOf("") }
                     val presets = remember { service.getVoicePresets() }
                     var selectedPresetName by remember {
                         mutableStateOf(
-                            presets.find { it.style == service.getVoiceStyle() }?.name ?: "自定义"
+                            presets.find { it.style == service.getVoiceStyle() }?.name ?: presets.first().name
                         )
                     }
 
@@ -723,46 +721,10 @@ fun QATab(
                                             selectedPresetName = preset.name
                                             service.setVoiceStyle(preset.style)
                                             service.setVoiceSeed(preset.seed)
-                                            showCustomInput = false
                                             voiceExpanded = false
                                         }
                                     )
                                 }
-                                DropdownMenuItem(
-                                    text = { Text("自定义...") },
-                                    onClick = {
-                                        showCustomInput = true
-                                        voiceExpanded = false
-                                    }
-                                )
-                            }
-                        }
-                    }
-
-                    if (showCustomInput) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            OutlinedTextField(
-                                value = customVoiceText,
-                                onValueChange = { customVoiceText = it },
-                                modifier = Modifier.weight(1f),
-                                placeholder = { Text("输入音色描述，如: Give me a deep male voice...") },
-                                singleLine = true
-                            )
-                            Button(
-                                onClick = {
-                                    if (customVoiceText.isNotBlank()) {
-                                        service.setVoiceStyle(customVoiceText)
-                                        service.setVoiceSeed(0)
-                                        selectedPresetName = "自定义"
-                                    }
-                                },
-                                enabled = customVoiceText.isNotBlank()
-                            ) {
-                                Text("应用")
                             }
                         }
                     }

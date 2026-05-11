@@ -26,6 +26,13 @@ class MIMOClient(private val config: ApiConfig) {
                 prettyPrint = true
             })
         }
+        engine {
+            requestTimeout = 120000
+            endpoint {
+                connectTimeout = 30000
+                socketTimeout = 120000
+            }
+        }
     }
 
     /**
