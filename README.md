@@ -35,13 +35,15 @@ cp src/main/resources/config.json.example src/main/resources/config.json
 
 ## 🎯 项目特点
 
-- ✅ RAG架构（检索增强生成）
-- ✅ 本地知识库（25条兰州旅游知识）
-- ✅ TF-IDF向量化（无需外部API）
+- ✅ RAG架构（检索增强生成，结合向量检索和大模型生成）
+- ✅ 本地知识库（2000条兰州旅游知识，10个分类）
+- ✅ TF-IDF向量化（本地计算，无需外部API）
+- ✅ TTS语音朗读（讯飞星火语音合成，支持多种音色）
+- ✅ AI图片生成（根据回答内容自动配图）
+- ✅ 数据库双模式（本地JSON + MariaDB，自动回退）
+- ✅ 聊天历史（自动保存到数据库）
 - ✅ Material Design 3界面
 - ✅ **多平台支持**：Windows、Linux、macOS
-- ✅ **双模式支持**：数据库 + 本地JSON
-- ✅ **聊天历史**：自动保存到数据库
 
 ## 📁 项目结构
 
@@ -132,4 +134,4 @@ cp src/main/resources/config.json.example src/main/resources/config.json
 
 **版本**：1.0.0
 **状态**：✅ 完成并可直接使用
-**最后更新**：2026-02-06
+**最后更新**：2026-05-11
