@@ -41,6 +41,21 @@ CREATE TABLE chat_history (
     INDEX idx_timestamp (timestamp)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- 创建 users 表（用户管理）
+CREATE TABLE IF NOT EXISTS users (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    username VARCHAR(50) NOT NULL UNIQUE,
+    password VARCHAR(100) NOT NULL,
+    role VARCHAR(20) NOT NULL DEFAULT 'TOURIST',
+    enabled BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_username (username)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 插入默认超级管理员账户（密码: 111111）
+INSERT IGNORE INTO users (username, password, role) VALUES
+('superadmin', '111111', 'SUPER_ADMIN');
+
 -- 插入基础兰州旅游知识数据（使用 INSERT IGNORE 避免重复）
 -- 注意：完整的2000条知识库数据通过应用程序启动时自动从 knowledge_base.json 同步到数据库
 -- 以下仅为初始化基础数据，确保数据库不为空
@@ -60,6 +75,7 @@ INSERT IGNORE INTO qa_pairs (id, question, answer, category) VALUES
 SELECT '数据库初始化完成' AS status;
 SELECT COUNT(*) AS qa_pairs_count FROM qa_pairs;
 SELECT COUNT(*) AS chat_history_count FROM chat_history;
+SELECT COUNT(*) AS users_count FROM users;
 
 -- 显示表结构信息
 SHOW TABLES;

@@ -408,6 +408,43 @@ class QAService {
     fun isSpeaking(): Boolean = ttsClient.isSpeaking()
 
     /**
+     * 新增知识条目（仅数据库模式）
+     */
+    fun addKnowledge(question: String, answer: String, category: String): Boolean {
+        if (!databaseConfig.enabled || !databaseManager.isInitialized()) return false
+        val success = databaseManager.insertQAPair(question, answer, category)
+        if (success) reloadKnowledgeBase(currentDataSource)
+        return success
+    }
+
+    /**
+     * 编辑知识条目（仅数据库模式）
+     */
+    fun updateKnowledge(id: Int, question: String, answer: String, category: String): Boolean {
+        if (!databaseConfig.enabled || !databaseManager.isInitialized()) return false
+        val success = databaseManager.updateQAPair(id, question, answer, category)
+        if (success) reloadKnowledgeBase(currentDataSource)
+        return success
+    }
+
+    /**
+     * 删除知识条目（仅数据库模式）
+     */
+    fun deleteKnowledge(id: Int): Boolean {
+        if (!databaseConfig.enabled || !databaseManager.isInitialized()) return false
+        val success = databaseManager.deleteQAPair(id)
+        if (success) reloadKnowledgeBase(currentDataSource)
+        return success
+    }
+
+    /**
+     * 获取数据库管理器（用于用户管理等操作）
+     */
+    fun getDatabaseManager(): DatabaseManager? {
+        return if (databaseConfig.enabled) databaseManager else null
+    }
+
+    /**
      * 关闭数据库连接和客户端
      */
     fun close() {

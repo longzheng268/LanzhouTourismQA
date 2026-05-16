@@ -2,6 +2,8 @@ package com.lanzhou.qa.database
 
 import com.lanzhou.qa.config.QAPair
 import com.lanzhou.qa.config.ChatHistory
+import com.lanzhou.qa.config.User
+import com.lanzhou.qa.config.UserRole
 import com.lanzhou.qa.model.DatabaseConfig
 import com.zaxxer.hikari.HikariConfig
 import com.zaxxer.hikari.HikariDataSource
@@ -73,6 +75,9 @@ class DatabaseManager(private val config: DatabaseConfig) {
             dataSource = HikariDataSource(hikariConfig)
             initialized = true
             println("✅ 数据库连接成功: ${config.host}:${config.port}/${config.database}")
+            // 自动创建用户表并初始化管理员
+            ensureUsersTable()
+            initDefaultAdmin()
             true
         } catch (e: Exception) {
             println("❌ 数据库连接失败: ${e.message}")
@@ -437,6 +442,384 @@ class DatabaseManager(private val config: DatabaseConfig) {
         }
 
         return stats
+    }
+
+    // ==================== 用户管理 ====================
+
+    /**
+     * 确保 users 表存在
+     */
+    fun ensureUsersTable(): Boolean {
+        if (!initialized || !config.enabled) return false
+
+        val sql = """
+            CREATE TABLE IF NOT EXISTS qa_database.users (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                username VARCHAR(50) NOT NULL UNIQUE,
+                password VARCHAR(100) NOT NULL,
+                role VARCHAR(20) NOT NULL DEFAULT 'TOURIST',
+                enabled BOOLEAN NOT NULL DEFAULT TRUE,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """.trimIndent()
+
+        return try {
+            getConnection()?.use { conn ->
+                conn.createStatement().use { stmt ->
+                    stmt.executeUpdate(sql)
+                }
+            }
+            println("✅ users 表就绪")
+            // 兼容旧表：自动补全 enabled 列
+            try {
+                getConnection()?.use { conn ->
+                    conn.createStatement().use { stmt ->
+                        stmt.executeQuery("SELECT enabled FROM qa_database.users LIMIT 1").close()
+                    }
+                }
+            } catch (_: Exception) {
+                try {
+                    getConnection()?.use { conn ->
+                        conn.createStatement().use { stmt ->
+                            stmt.executeUpdate("ALTER TABLE qa_database.users ADD COLUMN enabled BOOLEAN NOT NULL DEFAULT TRUE")
+                        }
+                    }
+                    println("✅ 已补全 users.enabled 列")
+                } catch (e: Exception) {
+                    println("⚠️ 补全 enabled 列失败: ${e.message}")
+                }
+            }
+            true
+        } catch (e: Exception) {
+            println("❌ 创建 users 表失败: ${e.message}")
+            false
+        }
+    }
+
+    /**
+     * 初始化默认超级管理员账户
+     */
+    fun initDefaultAdmin(): Boolean {
+        if (!initialized || !config.enabled) return false
+
+        val sql = "INSERT IGNORE INTO qa_database.users (username, password, role) VALUES (?, ?, ?)"
+        return try {
+            getConnection()?.use { conn ->
+                conn.prepareStatement(sql).use { pstmt ->
+                    pstmt.setString(1, "superadmin")
+                    pstmt.setString(2, "111111")
+                    pstmt.setString(3, UserRole.SUPER_ADMIN.name)
+                    pstmt.executeUpdate() > 0
+                }
+            } ?: false
+        } catch (e: Exception) {
+            println("❌ 初始化默认管理员失败: ${e.message}")
+            false
+        }
+    }
+
+    /**
+     * 注册用户
+     */
+    fun registerUser(username: String, password: String, role: UserRole): Pair<Boolean, String> {
+        if (!initialized || !config.enabled) return Pair(false, "数据库未启用")
+
+        if (username.isBlank() || password.isBlank()) {
+            return Pair(false, "用户名和密码不能为空")
+        }
+        if (username.length < 2 || username.length > 50) {
+            return Pair(false, "用户名长度需在2-50之间")
+        }
+        if (password.length < 6) {
+            return Pair(false, "密码长度不能少于6位")
+        }
+
+        // 检查用户名是否已存在
+        val checkSql = "SELECT COUNT(*) FROM qa_database.users WHERE username = ?"
+        try {
+            getConnection()?.use { conn ->
+                conn.prepareStatement(checkSql).use { pstmt ->
+                    pstmt.setString(1, username)
+                    pstmt.executeQuery().use { rs ->
+                        if (rs.next() && rs.getInt(1) > 0) {
+                            return Pair(false, "用户名已存在")
+                        }
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            return Pair(false, "查询用户失败: ${e.message}")
+        }
+
+        val sql = "INSERT INTO qa_database.users (username, password, role) VALUES (?, ?, ?)"
+        return try {
+            getConnection()?.use { conn ->
+                conn.prepareStatement(sql).use { pstmt ->
+                    pstmt.setString(1, username)
+                    pstmt.setString(2, password)
+                    pstmt.setString(3, role.name)
+                    val result = pstmt.executeUpdate() > 0
+                    if (result) {
+                        println("✅ 用户注册成功: $username (${role.label})")
+                        Pair(true, "注册成功")
+                    } else {
+                        Pair(false, "注册失败")
+                    }
+                }
+            } ?: Pair(false, "数据库连接失败")
+        } catch (e: Exception) {
+            Pair(false, "注册失败: ${e.message}")
+        }
+    }
+
+    /**
+     * 用户登录验证
+     */
+    fun loginUser(username: String, password: String): User? {
+        if (!initialized || !config.enabled) return null
+
+        val sql = "SELECT id, username, role, created_at FROM qa_database.users WHERE username = ? AND password = ?"
+        return try {
+            getConnection()?.use { conn ->
+                conn.prepareStatement(sql).use { pstmt ->
+                    pstmt.setString(1, username)
+                    pstmt.setString(2, password)
+                    pstmt.executeQuery().use { rs ->
+                        if (rs.next()) {
+                            User(
+                                id = rs.getInt("id"),
+                                username = rs.getString("username"),
+                                role = try {
+                                    UserRole.valueOf(rs.getString("role"))
+                                } catch (_: Exception) {
+                                    UserRole.TOURIST
+                                },
+                                createdAt = rs.getTimestamp("created_at")?.toString() ?: ""
+                            )
+                        } else {
+                            null
+                        }
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            println("❌ 登录失败: ${e.message}")
+            null
+        }
+    }
+
+    /**
+     * 获取所有用户
+     */
+    fun getAllUsers(): List<User> {
+        if (!initialized || !config.enabled) return emptyList()
+
+        val users = mutableListOf<User>()
+        // 先尝试带 enabled 查询，失败则回退
+        val sqlWithEnabled = "SELECT id, username, role, enabled, created_at FROM qa_database.users ORDER BY id"
+        val sqlWithoutEnabled = "SELECT id, username, role, created_at FROM qa_database.users ORDER BY id"
+        try {
+            getConnection()?.use { conn ->
+                conn.createStatement().use { stmt ->
+                    try {
+                        stmt.executeQuery(sqlWithEnabled).use { rs ->
+                            while (rs.next()) {
+                                users.add(
+                                    User(
+                                        id = rs.getInt("id"),
+                                        username = rs.getString("username"),
+                                        role = try { UserRole.valueOf(rs.getString("role")) } catch (_: Exception) { UserRole.TOURIST },
+                                        enabled = rs.getBoolean("enabled"),
+                                        createdAt = rs.getTimestamp("created_at")?.toString() ?: ""
+                                    )
+                                )
+                            }
+                        }
+                    } catch (_: Exception) {
+                        stmt.executeQuery(sqlWithoutEnabled).use { rs ->
+                            while (rs.next()) {
+                                users.add(
+                                    User(
+                                        id = rs.getInt("id"),
+                                        username = rs.getString("username"),
+                                        role = try { UserRole.valueOf(rs.getString("role")) } catch (_: Exception) { UserRole.TOURIST },
+                                        enabled = true,
+                                        createdAt = rs.getTimestamp("created_at")?.toString() ?: ""
+                                    )
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            println("❌ 查询用户列表失败: ${e.message}")
+        }
+        return users
+    }
+
+    /**
+     * 删除用户
+     */
+    fun deleteUser(userId: Int): Boolean {
+        if (!initialized || !config.enabled) return false
+
+        val sql = "DELETE FROM qa_database.users WHERE id = ?"
+        return try {
+            getConnection()?.use { conn ->
+                conn.prepareStatement(sql).use { pstmt ->
+                    pstmt.setInt(1, userId)
+                    pstmt.executeUpdate() > 0
+                }
+            } ?: false
+        } catch (e: Exception) {
+            println("❌ 删除用户失败: ${e.message}")
+            false
+        }
+    }
+
+    /**
+     * 修改用户角色
+     */
+    fun updateUserRole(userId: Int, newRole: UserRole): Boolean {
+        if (!initialized || !config.enabled) return false
+
+        val sql = "UPDATE qa_database.users SET role = ? WHERE id = ?"
+        return try {
+            getConnection()?.use { conn ->
+                conn.prepareStatement(sql).use { pstmt ->
+                    pstmt.setString(1, newRole.name)
+                    pstmt.setInt(2, userId)
+                    pstmt.executeUpdate() > 0
+                }
+            } ?: false
+        } catch (e: Exception) {
+            println("❌ 修改用户角色失败: ${e.message}")
+            false
+        }
+    }
+
+    /**
+     * 禁用用户
+     */
+    fun disableUser(userId: Int): Boolean {
+        if (!initialized || !config.enabled) return false
+        val sql = "UPDATE qa_database.users SET enabled = FALSE WHERE id = ?"
+        return try {
+            getConnection()?.use { conn ->
+                conn.prepareStatement(sql).use { pstmt ->
+                    pstmt.setInt(1, userId)
+                    pstmt.executeUpdate() > 0
+                }
+            } ?: false
+        } catch (e: Exception) {
+            println("❌ 禁用用户失败: ${e.message}")
+            false
+        }
+    }
+
+    /**
+     * 启用用户
+     */
+    fun enableUser(userId: Int): Boolean {
+        if (!initialized || !config.enabled) return false
+        val sql = "UPDATE qa_database.users SET enabled = TRUE WHERE id = ?"
+        return try {
+            getConnection()?.use { conn ->
+                conn.prepareStatement(sql).use { pstmt ->
+                    pstmt.setInt(1, userId)
+                    pstmt.executeUpdate() > 0
+                }
+            } ?: false
+        } catch (e: Exception) {
+            println("❌ 启用用户失败: ${e.message}")
+            false
+        }
+    }
+
+    /**
+     * 重置用户密码
+     */
+    fun resetPassword(userId: Int, newPassword: String): Boolean {
+        if (!initialized || !config.enabled) return false
+        if (newPassword.length < 6) return false
+        val sql = "UPDATE qa_database.users SET password = ? WHERE id = ?"
+        return try {
+            getConnection()?.use { conn ->
+                conn.prepareStatement(sql).use { pstmt ->
+                    pstmt.setString(1, newPassword)
+                    pstmt.setInt(2, userId)
+                    pstmt.executeUpdate() > 0
+                }
+            } ?: false
+        } catch (e: Exception) {
+            println("❌ 重置密码失败: ${e.message}")
+            false
+        }
+    }
+
+    // ==================== 知识库管理 ====================
+
+    /**
+     * 新增知识条目
+     */
+    fun insertQAPair(question: String, answer: String, category: String): Boolean {
+        if (!initialized || !config.enabled) return false
+        val sql = "INSERT INTO qa_database.qa_pairs (question, answer, category) VALUES (?, ?, ?)"
+        return try {
+            getConnection()?.use { conn ->
+                conn.prepareStatement(sql).use { pstmt ->
+                    pstmt.setString(1, question)
+                    pstmt.setString(2, answer)
+                    pstmt.setString(3, category)
+                    pstmt.executeUpdate() > 0
+                }
+            } ?: false
+        } catch (e: Exception) {
+            println("❌ 新增知识条目失败: ${e.message}")
+            false
+        }
+    }
+
+    /**
+     * 编辑知识条目
+     */
+    fun updateQAPair(id: Int, question: String, answer: String, category: String): Boolean {
+        if (!initialized || !config.enabled) return false
+        val sql = "UPDATE qa_database.qa_pairs SET question = ?, answer = ?, category = ? WHERE id = ?"
+        return try {
+            getConnection()?.use { conn ->
+                conn.prepareStatement(sql).use { pstmt ->
+                    pstmt.setString(1, question)
+                    pstmt.setString(2, answer)
+                    pstmt.setString(3, category)
+                    pstmt.setInt(4, id)
+                    pstmt.executeUpdate() > 0
+                }
+            } ?: false
+        } catch (e: Exception) {
+            println("❌ 编辑知识条目失败: ${e.message}")
+            false
+        }
+    }
+
+    /**
+     * 删除知识条目
+     */
+    fun deleteQAPair(id: Int): Boolean {
+        if (!initialized || !config.enabled) return false
+        val sql = "DELETE FROM qa_database.qa_pairs WHERE id = ?"
+        return try {
+            getConnection()?.use { conn ->
+                conn.prepareStatement(sql).use { pstmt ->
+                    pstmt.setInt(1, id)
+                    pstmt.executeUpdate() > 0
+                }
+            } ?: false
+        } catch (e: Exception) {
+            println("❌ 删除知识条目失败: ${e.message}")
+            false
+        }
     }
 
     /**

@@ -1,6 +1,7 @@
 package com.lanzhou.qa
 
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -8,6 +9,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.VerticalScrollbar
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.rememberScrollbarAdapter
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Search
@@ -15,9 +17,15 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.loadImageBitmap
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Window
@@ -28,14 +36,53 @@ import java.net.URL
 import kotlin.math.floor
 import kotlin.math.min
 import com.lanzhou.qa.config.LanguageManager
+import com.lanzhou.qa.config.User
+import com.lanzhou.qa.config.UserRole
 import com.lanzhou.qa.service.QAService
 import com.lanzhou.qa.ui.AudioWaveform
+import com.lanzhou.qa.ui.LoginScreen
 import com.lanzhou.qa.ui.DonutChart
 import com.lanzhou.qa.ui.HorizontalBarChart
 import com.lanzhou.qa.ui.StatCard
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+
+// 国潮古风配色 - 蓝黄系列（与登录页一致）
+private val BlueMain = Color(0xFF0D47A1)
+private val BlueBright = Color(0xFF1565C0)
+private val BlueLight = Color(0xFF42A5F5)
+private val GoldMain = Color(0xFFFFC107)
+private val GoldLight = Color(0xFFFFD54F)
+private val CreamWhite = Color(0xFFFFF8E1)
+private val DarkBg = Color(0xCC0A1628)
+
+// 自定义 Material3 配色方案（蓝金系列，替换默认紫色）
+private val AppColorScheme = darkColorScheme(
+    primary = GoldLight,
+    onPrimary = BlueMain,
+    primaryContainer = Color(0x331565C0),
+    onPrimaryContainer = GoldLight,
+    secondary = BlueLight,
+    onSecondary = CreamWhite,
+    secondaryContainer = Color(0x2242A5F5),
+    onSecondaryContainer = CreamWhite,
+    tertiary = GoldMain,
+    onTertiary = BlueMain,
+    error = Color(0xFFFF6B6B),
+    onError = CreamWhite,
+    errorContainer = Color(0x33FF6B6B),
+    onErrorContainer = Color(0xFFFF6B6B),
+    background = Color(0xFF1A2744),
+    onBackground = CreamWhite,
+    surface = Color(0xFF1E2D4A),
+    onSurface = CreamWhite,
+    surfaceVariant = Color(0x22FFFFFF),
+    onSurfaceVariant = CreamWhite.copy(alpha = 0.8f),
+    outline = GoldMain.copy(alpha = 0.5f),
+    outlineVariant = BlueLight.copy(alpha = 0.3f)
+)
+
 
 sealed interface AnswerBlock
 
@@ -66,6 +113,8 @@ fun App() {
     var stats by remember { mutableStateOf<Map<String, Int>>(emptyMap()) }
     var service by remember { mutableStateOf<QAService?>(null) }
     var currentLanguage by remember { mutableStateOf(LanguageManager.getCurrentLanguageCode()) }
+    var currentUser by remember { mutableStateOf<User?>(null) }
+    var selectedTab by remember { mutableStateOf(0) }
 
     LaunchedEffect(Unit) {
         withContext(Dispatchers.IO) {
@@ -75,100 +124,198 @@ fun App() {
         }
     }
 
-    MaterialTheme {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(16.dp)
-        ) {
-            Header(currentLanguage) { newLanguage ->
-                currentLanguage = newLanguage
+    MaterialTheme(colorScheme = AppColorScheme) {
+        if (!isInitialized) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator()
             }
-
-            if (!isInitialized) {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    CircularProgressIndicator()
-                }
+        } else if (currentUser == null) {
+            val dbManager = service!!.getDatabaseManager()
+            if (dbManager != null) {
+                LoginScreen(
+                    databaseManager = dbManager,
+                    onLoginSuccess = { user -> currentUser = user }
+                )
             } else {
-                MainContent(service!!, stats, currentLanguage)
+                currentUser = User(id = 0, username = "guest", role = UserRole.TOURIST)
+            }
+        } else {
+            // 纯蓝色渐变背景 + 侧边栏布局
+            Row(
+                modifier = Modifier.fillMaxSize().background(Color(0xFF1A2744))
+            ) {
+                // 左侧边栏
+                SideBar(
+                    currentUser = currentUser!!,
+                    currentLanguage = currentLanguage,
+                    selectedTab = selectedTab,
+                    onTabChange = { selectedTab = it },
+                    onLanguageChange = { newLanguage -> currentLanguage = newLanguage },
+                    onLogout = { currentUser = null }
+                )
+                // 右侧内容
+                MainContent(service!!, stats, currentLanguage, currentUser!!, selectedTab)
             }
         }
     }
 }
 
 @Composable
-fun Header(currentLanguage: String, onLanguageChange: (String) -> Unit) {
+fun SideBar(currentUser: User, currentLanguage: String, selectedTab: Int, onTabChange: (Int) -> Unit, onLanguageChange: (String) -> Unit, onLogout: () -> Unit) {
     val uiStrings = LanguageManager.getUIStrings()
     var expanded by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
-            .fillMaxWidth()
-            .padding(bottom = 16.dp)
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column {
-                Text(
-                    text = uiStrings.title,
-                    style = MaterialTheme.typography.headlineMedium,
-                    color = MaterialTheme.colorScheme.primary
+            .width(220.dp)
+            .fillMaxHeight()
+            .background(
+                Brush.verticalGradient(
+                    colors = listOf(Color(0xFF0F1B30), Color(0xFF141E33), Color(0xFF0F1B30))
                 )
+            )
+            .padding(vertical = 16.dp, horizontal = 12.dp)
+    ) {
+        // 系统标题
+        Text(
+            text = "✿",
+            color = GoldMain,
+            fontSize = 16.sp,
+            modifier = Modifier.align(Alignment.CenterHorizontally)
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = "兰州旅游问答系统",
+            style = TextStyle(fontSize = 16.sp, fontWeight = FontWeight.Bold, color = GoldLight, letterSpacing = 3.sp),
+            modifier = Modifier.align(Alignment.CenterHorizontally)
+        )
+        Text(
+            text = uiStrings.subtitle,
+            style = TextStyle(fontSize = 10.sp, color = GoldMain.copy(alpha = 0.6f), letterSpacing = 1.sp),
+            modifier = Modifier.align(Alignment.CenterHorizontally)
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // 分割线
+        Box(
+            modifier = Modifier.fillMaxWidth().height(1.dp)
+                .background(Brush.horizontalGradient(colors = listOf(Color.Transparent, GoldMain.copy(alpha = 0.4f), Color.Transparent)))
+        )
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // 导航项
+        val navItems = mutableListOf(
+            NavItem("❓ ${uiStrings.question}", 0),
+            NavItem("📚 ${uiStrings.knowledge_base}", 1),
+            NavItem("💬 ${uiStrings.chat_history}", 2),
+            NavItem("📊 ${uiStrings.stats}", 3),
+        )
+        if (currentUser.role == UserRole.ADMIN || currentUser.role == UserRole.SUPER_ADMIN) {
+            navItems.add(NavItem("✏️ 知识库管理", 4))
+            navItems.add(NavItem("👥 用户管理", 5))
+        }
+        if (currentUser.role == UserRole.SUPER_ADMIN) {
+            navItems.add(NavItem("⚙️ 系统配置", 6))
+        }
+
+        navItems.forEach { item ->
+            val isSelected = selectedTab == item.index
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(if (isSelected) Color(0x3342A5F5) else Color.Transparent)
+                    .clickable { onTabChange(item.index) }
+                    .padding(horizontal = 12.dp, vertical = 9.dp)
+            ) {
                 Text(
-                    text = uiStrings.subtitle,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.secondary
+                    text = item.label,
+                    color = if (isSelected) GoldLight else CreamWhite.copy(alpha = 0.75f),
+                    fontSize = 13.sp,
+                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
                 )
             }
+            Spacer(modifier = Modifier.height(2.dp))
+        }
 
-            // 控制按钮区域
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically
+        Spacer(modifier = Modifier.weight(1f))
+
+        // 分割线
+        Box(
+            modifier = Modifier.fillMaxWidth().height(1.dp)
+                .background(Brush.horizontalGradient(colors = listOf(Color.Transparent, GoldMain.copy(alpha = 0.4f), Color.Transparent)))
+        )
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // 用户信息
+        Text(
+            text = "👤 ${currentUser.username}",
+            color = CreamWhite,
+            fontSize = 13.sp,
+            modifier = Modifier.align(Alignment.CenterHorizontally)
+        )
+        Text(
+            text = currentUser.role.label,
+            color = GoldMain.copy(alpha = 0.7f),
+            fontSize = 11.sp,
+            modifier = Modifier.align(Alignment.CenterHorizontally)
+        )
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        // 语言选择器
+        Box(modifier = Modifier.fillMaxWidth()) {
+            OutlinedButton(
+                onClick = { expanded = true },
+                modifier = Modifier.fillMaxWidth().height(36.dp),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = GoldMain),
+                shape = RoundedCornerShape(6.dp)
             ) {
-                // 语言选择器
-                Box {
-                    OutlinedButton(
-                        onClick = { expanded = true },
-                        modifier = Modifier.height(40.dp)
-                    ) {
-                        Text("🌐")
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(LanguageManager.getLanguageName(currentLanguage))
-                    }
-
-                    DropdownMenu(
-                        expanded = expanded,
-                        onDismissRequest = { expanded = false }
-                    ) {
-                        LanguageManager.getAvailableLanguages().forEach { code ->
-                            DropdownMenuItem(
-                                text = { Text(LanguageManager.getLanguageName(code)) },
-                                onClick = {
-                                    LanguageManager.setCurrentLanguage(code)
-                                    onLanguageChange(code)
-                                    expanded = false
-                                }
-                            )
+                Text("🌐 ${LanguageManager.getLanguageName(currentLanguage)}", fontSize = 11.sp, color = GoldMain)
+            }
+            DropdownMenu(
+                expanded = expanded,
+                onDismissRequest = { expanded = false },
+                modifier = Modifier.background(Color(0xDD0D1F3C))
+            ) {
+                LanguageManager.getAvailableLanguages().forEach { code ->
+                    DropdownMenuItem(
+                        text = { Text(LanguageManager.getLanguageName(code), color = CreamWhite, fontSize = 12.sp) },
+                        onClick = {
+                            LanguageManager.setCurrentLanguage(code)
+                            onLanguageChange(code)
+                            expanded = false
                         }
-                    }
+                    )
                 }
             }
         }
+
         Spacer(modifier = Modifier.height(8.dp))
+
+        // 退出按钮
+        OutlinedButton(
+            onClick = onLogout,
+            modifier = Modifier.fillMaxWidth().height(36.dp),
+            colors = ButtonDefaults.outlinedButtonColors(
+                contentColor = Color(0xFFFF6B6B),
+                containerColor = Color(0x22FF6B6B)
+            ),
+            shape = RoundedCornerShape(6.dp)
+        ) {
+            Text("退出登录", fontSize = 12.sp, color = Color(0xFFFF6B6B))
+        }
     }
 }
 
+data class NavItem(val label: String, val index: Int)
+
 @Composable
-fun MainContent(service: QAService, stats: Map<String, Int>, currentLanguage: String) {
+fun MainContent(service: QAService, stats: Map<String, Int>, currentLanguage: String, currentUser: User, selectedTab: Int) {
     val uiStrings = LanguageManager.getUIStrings()
-    var selectedTab by remember { mutableStateOf(0) }
     var question by remember { mutableStateOf("") }
     var answer by remember { mutableStateOf("") }
     var imageUrls by remember { mutableStateOf<List<String>>(emptyList()) }
@@ -249,127 +396,47 @@ fun MainContent(service: QAService, stats: Map<String, Int>, currentLanguage: St
     val sourceText = if (currentSource == 1) uiStrings.database_mode else uiStrings.json_mode
 
     Column(
-        modifier = Modifier.fillMaxSize()
+        modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 12.dp)
     ) {
         // 统计信息面板
-        Card(
-            modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(8.dp))
+                .background(Color(0x22FFFFFF))
+                .padding(10.dp)
         ) {
-            Column(modifier = Modifier.padding(12.dp)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text("📊 ${uiStrings.stats}", style = MaterialTheme.typography.titleMedium)
-
-                    // 数据源选择按钮
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedButton(
-                            onClick = {
-                                scope.launch {
-                                    withContext(Dispatchers.IO) {
-                                        val success = service.reloadKnowledgeBase(0)
-                                        currentSource = 0
-                                        reloadMessage = if (success) uiStrings.switch_to_json_success else "❌ 切换失败"
-                                    }
-                                }
-                            },
-                            colors = if (currentSource == 0) {
-                                ButtonDefaults.outlinedButtonColors(
-                                    containerColor = MaterialTheme.colorScheme.primary,
-                                    contentColor = MaterialTheme.colorScheme.onPrimary
-                                )
-                            } else {
-                                ButtonDefaults.outlinedButtonColors()
-                            },
-                            modifier = Modifier.height(32.dp)
-                        ) {
-                            Text(uiStrings.json_mode, fontSize = 12.sp)
-                        }
-
-                        OutlinedButton(
-                            onClick = {
-                                scope.launch {
-                                    withContext(Dispatchers.IO) {
-                                        val success = service.reloadKnowledgeBase(1)
-                                        currentSource = 1
-                                        reloadMessage = if (success) uiStrings.switch_to_database_success else uiStrings.switch_to_database_failed
-                                    }
-                                }
-                            },
-                            colors = if (currentSource == 1) {
-                                ButtonDefaults.outlinedButtonColors(
-                                    containerColor = MaterialTheme.colorScheme.primary,
-                                    contentColor = MaterialTheme.colorScheme.onPrimary
-                                )
-                            } else {
-                                ButtonDefaults.outlinedButtonColors()
-                            },
-                            modifier = Modifier.height(32.dp)
-                        ) {
-                            Text(uiStrings.database_mode, fontSize = 12.sp)
-                        }
-                    }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text("${uiStrings.data_source}: $sourceText", color = CreamWhite.copy(alpha = 0.8f), style = MaterialTheme.typography.bodySmall)
+                Text("${uiStrings.total_items}: ${stats["totalItems"]} ${uiStrings.items}", color = CreamWhite.copy(alpha = 0.8f), style = MaterialTheme.typography.bodySmall)
+                Text("${uiStrings.categories}: ${stats["categories"]}", color = CreamWhite.copy(alpha = 0.8f), style = MaterialTheme.typography.bodySmall)
+                if (currentSource == 1) {
+                    Text("${uiStrings.db_qa}: ${stats["db_qa_pairs"] ?: 0} ${uiStrings.items}", color = CreamWhite.copy(alpha = 0.8f), style = MaterialTheme.typography.bodySmall)
+                    Text("${uiStrings.history}: ${stats["db_chat_history"] ?: 0} ${uiStrings.items}", color = CreamWhite.copy(alpha = 0.8f), style = MaterialTheme.typography.bodySmall)
                 }
-
-                Spacer(modifier = Modifier.height(6.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text("${uiStrings.data_source}: $sourceText", style = MaterialTheme.typography.bodySmall)
-                    Text("${uiStrings.total_items}: ${stats["totalItems"]} ${uiStrings.items}", style = MaterialTheme.typography.bodySmall)
-                    Text("${uiStrings.categories}: ${stats["categories"]}", style = MaterialTheme.typography.bodySmall)
-                    if (currentSource == 1) {
-                        Text("${uiStrings.db_qa}: ${stats["db_qa_pairs"] ?: 0} ${uiStrings.items}", style = MaterialTheme.typography.bodySmall)
-                        Text("${uiStrings.history}: ${stats["db_chat_history"] ?: 0} ${uiStrings.items}", style = MaterialTheme.typography.bodySmall)
-                    }
-                }
-
-                if (reloadMessage.isNotEmpty()) {
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = reloadMessage,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = if (reloadMessage.contains("✅")) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
-                    )
-                }
-
             }
         }
 
-        // 选项卡
-        TabRow(selectedTabIndex = selectedTab) {
-            Tab(
-                selected = selectedTab == 0,
-                onClick = { selectedTab = 0 },
-                text = { Text(uiStrings.question) }
-            )
-            Tab(
-                selected = selectedTab == 1,
-                onClick = { selectedTab = 1 },
-                text = { Text(uiStrings.knowledge_base) }
-            )
-            Tab(
-                selected = selectedTab == 2,
-                onClick = { selectedTab = 2 },
-                text = { Text(uiStrings.chat_history) }
-            )
-            Tab(
-                selected = selectedTab == 3,
-                onClick = { selectedTab = 3 },
-                text = { Text(uiStrings.stats) }
+        if (reloadMessage.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = reloadMessage,
+                style = MaterialTheme.typography.bodySmall,
+                color = if (reloadMessage.contains("✅")) GoldLight else Color(0xFFFF6B6B)
             )
         }
+
+        Spacer(modifier = Modifier.height(8.dp))
 
     val onQuestionChange = remember { { newQuestion: String -> question = newQuestion } }
     val onAnswerChange = remember { { newAnswer: String -> answer = newAnswer } }
     val onAskingChange = remember { { newAsking: Boolean -> isAsking = newAsking } }
 
-    // 选项卡内容
+    // 选项卡内容 - weight(1f) 填满剩余空间
+    Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
     when (selectedTab) {
         0 -> QATab(
             service = service,
@@ -394,6 +461,10 @@ fun MainContent(service: QAService, stats: Map<String, Int>, currentLanguage: St
         1 -> KnowledgeTab(service, currentLanguage)
         2 -> ChatHistoryTab(service, currentLanguage)
         3 -> StatsTab(service, stats, currentLanguage)
+        4 -> KnowledgeManagementTab(service, currentUser)
+        5 -> UserManagementTab(service, currentUser)
+        6 -> SystemConfigTab(service, currentSource) { newSource -> currentSource = newSource }
+    }
     }
     }
 }
@@ -1286,5 +1357,553 @@ fun StatsRow(label: String, value: String) {
     ) {
         Text(label, style = MaterialTheme.typography.bodyMedium)
         Text(value, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
+    }
+}
+
+/**
+ * 用户管理选项卡（管理员和超级管理员可用）
+ * 管理员：管理普通用户（禁用/启用/重置密码/删除）
+ * 超级管理员：管理所有用户（含管理员账号的创建/删除/角色修改）
+ */
+@Composable
+fun UserManagementTab(service: QAService, currentUser: User) {
+    var users by remember { mutableStateOf(emptyList<User>()) }
+    var isLoading by remember { mutableStateOf(true) }
+    var actionMessage by remember { mutableStateOf("") }
+    val coroutineScope = rememberCoroutineScope()
+    val dbManager = service.getDatabaseManager()
+    val isSuperAdmin = currentUser.role == UserRole.SUPER_ADMIN
+
+    // 超级管理员相关状态
+    var showCreateAdmin by remember { mutableStateOf(false) }
+    var newAdminName by remember { mutableStateOf("") }
+    var newAdminPwd by remember { mutableStateOf("") }
+
+    // 重置密码弹窗
+    var resetPwdUser by remember { mutableStateOf<User?>(null) }
+    var resetPwdValue by remember { mutableStateOf("") }
+
+    fun reloadUsers() {
+        isLoading = true
+        coroutineScope.launch {
+            withContext(Dispatchers.IO) {
+                users = dbManager?.getAllUsers() ?: emptyList()
+                isLoading = false
+            }
+        }
+    }
+
+    fun msg(text: String) { actionMessage = text }
+
+    LaunchedEffect(Unit) {
+        withContext(Dispatchers.IO) {
+            users = dbManager?.getAllUsers() ?: emptyList()
+            isLoading = false
+        }
+    }
+
+    // 管理员只能看普通用户，超级管理员看所有用户
+    val visibleUsers = if (isSuperAdmin) users else users.filter { it.role == UserRole.TOURIST }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(12.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 12.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "共 ${visibleUsers.size} 个${if (isSuperAdmin) "" else "普通"}用户",
+                style = MaterialTheme.typography.titleSmall
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (isSuperAdmin) {
+                    Button(onClick = { showCreateAdmin = !showCreateAdmin }) {
+                        Text(if (showCreateAdmin) "收起" else "创建管理员", fontSize = 12.sp)
+                    }
+                }
+                Button(onClick = { reloadUsers() }) {
+                    Text("刷新", fontSize = 12.sp)
+                }
+            }
+        }
+
+        // 超级管理员：创建管理员表单
+        if (showCreateAdmin && isSuperAdmin) {
+            Card(
+                modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+            ) {
+                Column(modifier = Modifier.padding(12.dp)) {
+                    Text("创建新管理员", style = MaterialTheme.typography.titleSmall)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        OutlinedTextField(
+                            value = newAdminName,
+                            onValueChange = { newAdminName = it },
+                            label = { Text("用户名") },
+                            singleLine = true,
+                            modifier = Modifier.weight(1f)
+                        )
+                        OutlinedTextField(
+                            value = newAdminPwd,
+                            onValueChange = { newAdminPwd = it },
+                            label = { Text("密码") },
+                            singleLine = true,
+                            visualTransformation = PasswordVisualTransformation(),
+                            modifier = Modifier.weight(1f)
+                        )
+                        Button(onClick = {
+                            if (newAdminName.isBlank() || newAdminPwd.isBlank()) {
+                                msg("❌ 用户名和密码不能为空")
+                                return@Button
+                            }
+                            coroutineScope.launch {
+                                withContext(Dispatchers.IO) {
+                                    val (success, msgText) = dbManager?.registerUser(newAdminName, newAdminPwd, UserRole.ADMIN) ?: Pair(false, "数据库未连接")
+                                    msg(if (success) "✅ 管理员 $newAdminName 创建成功" else "❌ $msgText")
+                                    if (success) {
+                                        newAdminName = ""
+                                        newAdminPwd = ""
+                                        showCreateAdmin = false
+                                        reloadUsers()
+                                    }
+                                }
+                            }
+                        }) {
+                            Text("创建", fontSize = 12.sp)
+                        }
+                    }
+                }
+            }
+        }
+
+        // 重置密码弹窗
+        if (resetPwdUser != null) {
+            Card(
+                modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer)
+            ) {
+                Column(modifier = Modifier.padding(12.dp)) {
+                    Text("重置密码 - ${resetPwdUser!!.username}", style = MaterialTheme.typography.titleSmall)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        OutlinedTextField(
+                            value = resetPwdValue,
+                            onValueChange = { resetPwdValue = it },
+                            label = { Text("新密码") },
+                            singleLine = true,
+                            visualTransformation = PasswordVisualTransformation(),
+                            modifier = Modifier.weight(1f)
+                        )
+                        Button(onClick = {
+                            coroutineScope.launch {
+                                withContext(Dispatchers.IO) {
+                                    val success = dbManager?.resetPassword(resetPwdUser!!.id, resetPwdValue) ?: false
+                                    msg(if (success) "✅ 密码已重置" else "❌ 重置失败（密码至少6位）")
+                                    if (success) {
+                                        resetPwdUser = null
+                                        resetPwdValue = ""
+                                    }
+                                }
+                            }
+                        }) {
+                            Text("确认", fontSize = 12.sp)
+                        }
+                        OutlinedButton(onClick = { resetPwdUser = null; resetPwdValue = "" }) {
+                            Text("取消", fontSize = 12.sp)
+                        }
+                    }
+                }
+            }
+        }
+
+        // 操作消息
+        if (actionMessage.isNotEmpty()) {
+            Card(
+                modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = if (actionMessage.contains("✅"))
+                        MaterialTheme.colorScheme.primaryContainer
+                    else
+                        MaterialTheme.colorScheme.errorContainer
+                )
+            ) {
+                Text(
+                    text = actionMessage,
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(12.dp)
+                )
+            }
+        }
+
+        if (isLoading) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator()
+            }
+        } else if (visibleUsers.isEmpty()) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text("暂无用户数据", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.secondary)
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                items(visibleUsers) { user ->
+                    Card(modifier = Modifier.fillMaxWidth()) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(
+                                            text = user.username,
+                                            style = MaterialTheme.typography.titleSmall,
+                                            color = MaterialTheme.colorScheme.primary
+                                        )
+                                        if (!user.enabled) {
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Text(
+                                                text = "[已禁用]",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = MaterialTheme.colorScheme.error
+                                            )
+                                        }
+                                    }
+                                    Text(
+                                        text = "角色: ${user.role.label}  |  ID: ${user.id}${if (user.createdAt.isNotEmpty()) "  |  注册: ${user.createdAt}" else ""}",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.secondary
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                // 超级管理员：修改角色（不能修改自己的角色）
+                                if (isSuperAdmin && user.id != currentUser.id) {
+                                    var roleExpanded by remember { mutableStateOf(false) }
+                                    Box {
+                                        OutlinedButton(onClick = { roleExpanded = true }, modifier = Modifier.height(36.dp)) {
+                                            Text(user.role.label, fontSize = 12.sp)
+                                        }
+                                        DropdownMenu(expanded = roleExpanded, onDismissRequest = { roleExpanded = false }) {
+                                            UserRole.values().forEach { role ->
+                                                DropdownMenuItem(
+                                                    text = { Text(role.label) },
+                                                    onClick = {
+                                                        roleExpanded = false
+                                                        if (role != user.role) {
+                                                            coroutineScope.launch {
+                                                                withContext(Dispatchers.IO) {
+                                                                    val success = dbManager?.updateUserRole(user.id, role) ?: false
+                                                                    msg(if (success) "✅ ${user.username} 角色已改为 ${role.label}" else "❌ 修改失败")
+                                                                    if (success) reloadUsers()
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+
+                                // 禁用/启用（不能操作自己和超级管理员）
+                                if (user.id != currentUser.id && (isSuperAdmin || user.role == UserRole.TOURIST)) {
+                                    OutlinedButton(
+                                        onClick = {
+                                            coroutineScope.launch {
+                                                withContext(Dispatchers.IO) {
+                                                    val success = if (user.enabled) dbManager?.disableUser(user.id) else dbManager?.enableUser(user.id)
+                                                    msg(if (success == true) "✅ ${user.username} 已${if (user.enabled) "禁用" else "启用"}" else "❌ 操作失败")
+                                                    if (success == true) reloadUsers()
+                                                }
+                                            }
+                                        },
+                                        modifier = Modifier.height(36.dp),
+                                        colors = if (user.enabled) {
+                                            ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                                        } else {
+                                            ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.primary)
+                                        }
+                                    ) {
+                                        Text(if (user.enabled) "禁用" else "启用", fontSize = 12.sp)
+                                    }
+                                }
+
+                                // 重置密码
+                                OutlinedButton(
+                                    onClick = { resetPwdUser = user; resetPwdValue = "" },
+                                    modifier = Modifier.height(36.dp)
+                                ) {
+                                    Text("重置密码", fontSize = 12.sp)
+                                }
+
+                                // 删除（不能删除自己，不能删除唯一的超级管理员）
+                                if (user.id != currentUser.id && (isSuperAdmin || user.role == UserRole.TOURIST)) {
+                                    OutlinedButton(
+                                        onClick = {
+                                            coroutineScope.launch {
+                                                withContext(Dispatchers.IO) {
+                                                    val success = dbManager?.deleteUser(user.id) ?: false
+                                                    msg(if (success) "✅ 已删除 ${user.username}" else "❌ 删除失败")
+                                                    if (success) reloadUsers()
+                                                }
+                                            }
+                                        },
+                                        modifier = Modifier.height(36.dp),
+                                        colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                                    ) {
+                                        Text("删除", fontSize = 12.sp)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * 知识库管理选项卡（管理员和超级管理员可用）
+ * 支持新增/编辑/删除知识条目
+ */
+@Composable
+fun KnowledgeManagementTab(service: QAService, currentUser: User) {
+    var allKnowledge by remember { mutableStateOf(emptyList<com.lanzhou.qa.model.KnowledgeItem>()) }
+    var filteredKnowledge by remember { mutableStateOf(emptyList<com.lanzhou.qa.model.KnowledgeItem>()) }
+    var searchKeyword by remember { mutableStateOf("") }
+    var isLoading by remember { mutableStateOf(true) }
+    var actionMessage by remember { mutableStateOf("") }
+    val coroutineScope = rememberCoroutineScope()
+
+    var showForm by remember { mutableStateOf(false) }
+    var editingItem by remember { mutableStateOf<com.lanzhou.qa.model.KnowledgeItem?>(null) }
+    var formQuestion by remember { mutableStateOf("") }
+    var formAnswer by remember { mutableStateOf("") }
+    var formCategory by remember { mutableStateOf("") }
+
+    fun reload() {
+        isLoading = true
+        coroutineScope.launch {
+            withContext(Dispatchers.IO) {
+                allKnowledge = service.getAllKnowledge()
+                filteredKnowledge = if (searchKeyword.isBlank()) allKnowledge else allKnowledge.filter {
+                    it.question.contains(searchKeyword, ignoreCase = true) || it.answer.contains(searchKeyword, ignoreCase = true)
+                }
+                isLoading = false
+            }
+        }
+    }
+
+    fun openEditForm(item: com.lanzhou.qa.model.KnowledgeItem) {
+        editingItem = item
+        formQuestion = item.question
+        formAnswer = item.answer
+        formCategory = item.category
+        showForm = true
+    }
+
+    fun openAddForm() {
+        editingItem = null
+        formQuestion = ""
+        formAnswer = ""
+        formCategory = ""
+        showForm = true
+    }
+
+    LaunchedEffect(Unit) {
+        withContext(Dispatchers.IO) {
+            allKnowledge = service.getAllKnowledge()
+            filteredKnowledge = allKnowledge
+            isLoading = false
+        }
+    }
+
+    Column(modifier = Modifier.fillMaxSize().padding(12.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            OutlinedTextField(
+                value = searchKeyword,
+                onValueChange = { keyword ->
+                    searchKeyword = keyword
+                    filteredKnowledge = if (keyword.isBlank()) allKnowledge else allKnowledge.filter {
+                        it.question.contains(keyword, ignoreCase = true) || it.answer.contains(keyword, ignoreCase = true) || it.category.contains(keyword, ignoreCase = true)
+                    }
+                },
+                label = { Text("搜索...") },
+                modifier = Modifier.weight(1f),
+                singleLine = true
+            )
+            Button(onClick = { openAddForm() }) { Text("新增条目", fontSize = 12.sp) }
+            Button(onClick = { reload() }) { Text("刷新", fontSize = 12.sp) }
+        }
+
+        Text("共 ${filteredKnowledge.size} 条知识", style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(bottom = 8.dp))
+
+        // 新增/编辑表单
+        if (showForm) {
+            Card(
+                modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+            ) {
+                Column(modifier = Modifier.padding(12.dp)) {
+                    Text(text = if (editingItem != null) "编辑知识条目 #${editingItem!!.id}" else "新增知识条目", style = MaterialTheme.typography.titleSmall)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedTextField(value = formQuestion, onValueChange = { formQuestion = it }, label = { Text("问题") }, modifier = Modifier.fillMaxWidth(), minLines = 2)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedTextField(value = formAnswer, onValueChange = { formAnswer = it }, label = { Text("回答") }, modifier = Modifier.fillMaxWidth(), minLines = 3)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedTextField(value = formCategory, onValueChange = { formCategory = it }, label = { Text("分类") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(onClick = {
+                            if (formQuestion.isBlank() || formAnswer.isBlank()) { actionMessage = "❌ 问题和回答不能为空"; return@Button }
+                            coroutineScope.launch {
+                                withContext(Dispatchers.IO) {
+                                    val success = if (editingItem != null) service.updateKnowledge(editingItem!!.id, formQuestion, formAnswer, formCategory)
+                                        else service.addKnowledge(formQuestion, formAnswer, formCategory)
+                                    actionMessage = if (success) (if (editingItem != null) "✅ 条目已更新" else "✅ 新增成功") else "❌ 操作失败（需数据库模式）"
+                                    if (success) { showForm = false; reload() }
+                                }
+                            }
+                        }) { Text(if (editingItem != null) "保存" else "添加") }
+                        OutlinedButton(onClick = { showForm = false }) { Text("取消") }
+                    }
+                }
+            }
+        }
+
+        if (actionMessage.isNotEmpty()) {
+            Card(
+                modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                colors = CardDefaults.cardColors(containerColor = if (actionMessage.contains("✅")) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.errorContainer)
+            ) { Text(text = actionMessage, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(12.dp)) }
+        }
+
+        if (isLoading) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+        } else {
+            LazyColumn(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(filteredKnowledge) { item ->
+                    Card(modifier = Modifier.fillMaxWidth()) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                Text(text = "❓ ${item.question}", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary, modifier = Modifier.weight(1f))
+                                Text(text = "📚 ${item.category}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.secondary)
+                            }
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(text = item.answer, style = MaterialTheme.typography.bodySmall, lineHeight = 16.sp, maxLines = 3)
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                OutlinedButton(onClick = { openEditForm(item) }, modifier = Modifier.height(34.dp)) { Text("编辑", fontSize = 11.sp) }
+                                OutlinedButton(
+                                    onClick = {
+                                        coroutineScope.launch {
+                                            withContext(Dispatchers.IO) {
+                                                val success = service.deleteKnowledge(item.id)
+                                                actionMessage = if (success) "✅ 已删除 #${item.id}" else "❌ 删除失败（需数据库模式）"
+                                                if (success) reload()
+                                            }
+                                        }
+                                    },
+                                    modifier = Modifier.height(34.dp),
+                                    colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                                ) { Text("删除", fontSize = 11.sp) }
+                                Text(text = "ID: ${item.id}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline, modifier = Modifier.align(Alignment.CenterVertically))
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * 系统配置选项卡（仅超级管理员可用）
+ */
+@Composable
+fun SystemConfigTab(service: QAService, currentSource: Int, onSourceChange: (Int) -> Unit) {
+    var sourceState by remember { mutableStateOf(currentSource) }
+    var message by remember { mutableStateOf("") }
+    val coroutineScope = rememberCoroutineScope()
+
+    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+        Card(modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text(text = "数据源配置", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(text = "选择知识库数据来源，切换后立即生效", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.secondary)
+                Spacer(modifier = Modifier.height(12.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Card(
+                        modifier = Modifier.weight(1f).clickable {
+                            coroutineScope.launch {
+                                withContext(Dispatchers.IO) {
+                                    val success = service.reloadKnowledgeBase(0)
+                                    if (success) { sourceState = 0; onSourceChange(0) }
+                                    message = if (success) "✅ 已切换到本地JSON模式" else "❌ 切换失败"
+                                }
+                            }
+                        },
+                        colors = CardDefaults.cardColors(containerColor = if (sourceState == 0) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant)
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text("JSON模式", style = MaterialTheme.typography.titleSmall)
+                            Text("本地文件读取", style = MaterialTheme.typography.bodySmall)
+                            if (sourceState == 0) { Text("当前使用中", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary) }
+                        }
+                    }
+                    Card(
+                        modifier = Modifier.weight(1f).clickable {
+                            coroutineScope.launch {
+                                withContext(Dispatchers.IO) {
+                                    val success = service.reloadKnowledgeBase(1)
+                                    if (success) { sourceState = 1; onSourceChange(1) }
+                                    message = if (success) "✅ 已切换到数据库模式" else "❌ 切换失败，请检查数据库配置"
+                                }
+                            }
+                        },
+                        colors = CardDefaults.cardColors(containerColor = if (sourceState == 1) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant)
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text("数据库模式", style = MaterialTheme.typography.titleSmall)
+                            Text("MariaDB/MySQL", style = MaterialTheme.typography.bodySmall)
+                            if (sourceState == 1) { Text("当前使用中", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary) }
+                        }
+                    }
+                }
+            }
+        }
+        if (message.isNotEmpty()) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = if (message.contains("✅")) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.errorContainer)
+            ) { Text(text = message, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(12.dp)) }
+        }
     }
 }
