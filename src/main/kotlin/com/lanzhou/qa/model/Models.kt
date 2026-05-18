@@ -16,6 +16,19 @@ data class KnowledgeBase(
     val knowledge_base: List<KnowledgeItem>
 )
 
+// 收藏夹数据模型
+@Serializable
+data class FavoriteItem(
+    val itemName: String,
+    val sourceTab: String,
+    val timestamp: String
+)
+
+@Serializable
+data class FavoritesData(
+    val favorites: List<FavoriteItem> = emptyList()
+)
+
 // 配置模型
 @Serializable
 data class ApiConfig(

@@ -9,6 +9,8 @@ import com.lanzhou.qa.database.DatabaseManager
 import com.lanzhou.qa.api.ImageClient
 import com.lanzhou.qa.embedding.EmbeddingModel
 import com.lanzhou.qa.model.ImageConfig
+import com.lanzhou.qa.model.FavoriteItem
+import com.lanzhou.qa.model.FavoritesData
 import com.lanzhou.qa.model.KnowledgeItem
 import com.lanzhou.qa.model.VoicePreset
 import com.lanzhou.qa.model.defaultVoicePresets
@@ -47,6 +49,10 @@ class QAService {
     // JSON聊天历史存储
     private val jsonHistoryFile = File("chat_history.json")
     private val jsonHistoryLock = Any()
+
+    // JSON收藏夹存储
+    private val favoritesFile = File("favorites.json")
+    private val favoritesLock = Any()
 
     init {
         // 初始化时加载默认数据源
@@ -442,6 +448,75 @@ class QAService {
      */
     fun getDatabaseManager(): DatabaseManager? {
         return if (databaseConfig.enabled) databaseManager else null
+    }
+
+    // ==================== 收藏夹管理 ====================
+
+    /**
+     * 获取全部收藏
+     */
+    fun getFavorites(): List<FavoriteItem> {
+        synchronized(favoritesLock) {
+            return try {
+                if (!favoritesFile.exists()) return emptyList()
+                val json = Json { ignoreUnknownKeys = true }
+                val data = json.decodeFromString<FavoritesData>(favoritesFile.readText())
+                data.favorites
+            } catch (e: Exception) {
+                println("⚠️ 加载收藏夹失败: ${e.message}")
+                emptyList()
+            }
+        }
+    }
+
+    /**
+     * 添加收藏
+     */
+    fun addFavorite(itemName: String, sourceTab: String): Boolean {
+        synchronized(favoritesLock) {
+            return try {
+                val json = Json { ignoreUnknownKeys = true }
+                val current = if (favoritesFile.exists()) {
+                    json.decodeFromString<FavoritesData>(favoritesFile.readText())
+                } else {
+                    FavoritesData()
+                }
+                if (current.favorites.any { it.itemName == itemName }) return false
+                val timestamp = java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"))
+                val updated = current.copy(favorites = current.favorites + FavoriteItem(itemName, sourceTab, timestamp))
+                favoritesFile.writeText(json.encodeToString(updated))
+                true
+            } catch (e: Exception) {
+                println("⚠️ 添加收藏失败: ${e.message}")
+                false
+            }
+        }
+    }
+
+    /**
+     * 取消收藏
+     */
+    fun removeFavorite(itemName: String): Boolean {
+        synchronized(favoritesLock) {
+            return try {
+                if (!favoritesFile.exists()) return false
+                val json = Json { ignoreUnknownKeys = true }
+                val current = json.decodeFromString<FavoritesData>(favoritesFile.readText())
+                val updated = current.copy(favorites = current.favorites.filter { it.itemName != itemName })
+                favoritesFile.writeText(json.encodeToString(updated))
+                true
+            } catch (e: Exception) {
+                println("⚠️ 取消收藏失败: ${e.message}")
+                false
+            }
+        }
+    }
+
+    /**
+     * 判断是否已收藏
+     */
+    fun isFavorite(itemName: String): Boolean {
+        return getFavorites().any { it.itemName == itemName }
     }
 
     /**

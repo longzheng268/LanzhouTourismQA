@@ -1,5 +1,6 @@
 package com.lanzhou.qa
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -11,7 +12,10 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.VerticalScrollbar
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.rememberScrollbarAdapter
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Search
@@ -27,6 +31,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.loadImageBitmap
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -121,6 +126,142 @@ private val cardImages = mapOf(
     "安全与健康" to CardImage("cards/anquan.jpg", Color(0xFF922B21), Color(0xFFEC7063))
 )
 
+// 景点数据（共享，供攻略和景点Tab使用）
+private val sharedAttractions = listOf(
+    mapOf("name" to "白塔山公园", "type" to "山", "area" to "城关区", "price" to "免费"),
+    mapOf("name" to "中山桥", "type" to "古城", "area" to "城关区", "price" to "免费"),
+    mapOf("name" to "五泉山公园", "type" to "公园", "area" to "城关区", "price" to "免费"),
+    mapOf("name" to "甘肃省博物馆", "type" to "博物馆", "area" to "七里河区", "price" to "免费"),
+    mapOf("name" to "水车博览园", "type" to "公园", "area" to "城关区", "price" to "10元"),
+    mapOf("name" to "黄河母亲雕塑", "type" to "雕塑", "area" to "城关区", "price" to "免费"),
+    mapOf("name" to "兰山公园", "type" to "公园", "area" to "城关区", "price" to "免费"),
+    mapOf("name" to "兴隆山国家级自然保护区", "type" to "自然", "area" to "榆中县", "price" to "40元"),
+    mapOf("name" to "什川古梨园", "type" to "自然", "area" to "皋兰县", "price" to "免费"),
+    mapOf("name" to "青城古镇", "type" to "古城", "area" to "榆中县", "price" to "免费"),
+    mapOf("name" to "吐鲁沟国家森林公园", "type" to "自然", "area" to "永登县", "price" to "50元"),
+    mapOf("name" to "兰州老街", "type" to "古城", "area" to "七里河区", "price" to "免费"),
+    mapOf("name" to "黄河风情线", "type" to "自然", "area" to "城关区", "price" to "免费")
+)
+
+// 美食基础数据（共享，供跨Tab使用）
+private val sharedFoodList = listOf(
+    mapOf("name" to "兰州牛肉面", "category" to "面食", "location" to "全市各处", "price" to "8-15元", "icon" to "🍜"),
+    mapOf("name" to "手抓羊肉", "category" to "肉类", "location" to "小西湖一带", "price" to "40-60元/斤", "icon" to "🍖"),
+    mapOf("name" to "灰豆子", "category" to "甜品", "location" to "各小吃摊", "price" to "5-8元", "icon" to "🥣"),
+    mapOf("name" to "酿皮子", "category" to "面食", "location" to "各小吃街", "price" to "6-10元", "icon" to "🥘"),
+    mapOf("name" to "牛奶鸡蛋醪糟", "category" to "甜品", "location" to "正宁路夜市", "price" to "10-15元", "icon" to "🥛"),
+    mapOf("name" to "烤羊肉串", "category" to "烧烤", "location" to "各夜市", "price" to "3-5元/串", "icon" to "🍢"),
+    mapOf("name" to "浆水面", "category" to "面食", "location" to "各面馆", "price" to "10-15元", "icon" to "🍝"),
+    mapOf("name" to "热冬果", "category" to "甜品", "location" to "冬季各摊点", "price" to "8-12元", "icon" to "🍐"),
+    mapOf("name" to "三泡台盖碗茶", "category" to "饮品", "location" to "各茶楼", "price" to "15-30元", "icon" to "🍵"),
+    mapOf("name" to "甜醅子", "category" to "甜品", "location" to "各小吃摊", "price" to "5-8元", "icon" to "🍶"),
+    mapOf("name" to "黄河啤酒", "category" to "饮品", "location" to "各大超市", "price" to "5-8元", "icon" to "🍺")
+)
+
+// 美食推荐店铺数据
+private val foodShopData = mapOf(
+    "兰州牛肉面" to listOf(
+        mapOf("shop" to "马子禄牛肉面", "address" to "城关区大众巷88号", "note" to "百年老字号，排队名店"),
+        mapOf("shop" to "磨沟沿老字号牛肉面", "address" to "城关区永昌路205号", "note" to "本地人最爱，汤头浓郁"),
+        mapOf("shop" to "舌尖尖牛肉面", "address" to "七里河区西津西路", "note" to "连锁品牌，品质稳定")
+    ),
+    "手抓羊肉" to listOf(
+        mapOf("shop" to "阿西娅羊羔肉", "address" to "城关区小西湖", "note" to "老字号，肉质鲜嫩"),
+        mapOf("shop" to "忠华手抓", "address" to "城关区金昌路", "note" to "靖远滩羊，品质上乘")
+    ),
+    "灰豆子" to listOf(
+        mapOf("shop" to "杜记甜食", "address" to "城关区正宁路夜市", "note" to "夜市老字号"),
+        mapOf("shop" to "马爷牛奶鸡蛋醪糟", "address" to "城关区正宁路夜市", "note" to "灰豆子+醪糟都有")
+    ),
+    "酿皮子" to listOf(
+        mapOf("shop" to "再回首酿皮", "address" to "城关区大众巷", "note" to "薄如纸韧如丝"),
+        mapOf("shop" to "高担酿皮", "address" to "城关区农民巷", "note" to "传统手工制作")
+    ),
+    "牛奶鸡蛋醪糟" to listOf(
+        mapOf("shop" to "老马家醪糟", "address" to "城关区正宁路夜市", "note" to "夜市排队王，现煮现卖")
+    ),
+    "烤羊肉串" to listOf(
+        mapOf("shop" to "大漠烤肉", "address" to "城关区南关夜市", "note" to "炭火烤制，外焦里嫩"),
+        mapOf("shop" to "马三洋芋片", "address" to "城关区正宁路", "note" to "烤串+洋芋片组合")
+    ),
+    "浆水面" to listOf(
+        mapOf("shop" to "浆水面大王", "address" to "城关区农民巷", "note" to "浆水发酵到位，酸爽正宗")
+    ),
+    "热冬果" to listOf(
+        mapOf("shop" to "冬果梨摊", "address" to "城关区正宁路夜市", "note" to "冬季限定，甜蜜暖胃")
+    ),
+    "三泡台盖碗茶" to listOf(
+        mapOf("shop" to "黄河茶楼", "address" to "城关区南滨河路", "note" to "黄河边品茶，景致绝佳")
+    ),
+    "甜醅子" to listOf(
+        mapOf("shop" to "杜记甜食", "address" to "城关区正宁路夜市", "note" to "酒香浓郁，甜度适中")
+    ),
+    "黄河啤酒" to listOf(
+        mapOf("shop" to "各大超市/便利店", "address" to "全市", "note" to "冰镇后搭配烤串最佳")
+    )
+)
+
+// 景点-美食位置映射（景点附近推荐美食）
+private val attractionFoodMap = mapOf(
+    "白塔山公园" to listOf("烤羊肉串", "三泡台盖碗茶", "灰豆子"),
+    "中山桥" to listOf("烤羊肉串", "牛奶鸡蛋醪糟", "灰豆子"),
+    "五泉山公园" to listOf("浆水面", "酿皮子", "甜醅子"),
+    "甘肃省博物馆" to listOf("兰州牛肉面", "酿皮子", "三泡台盖碗茶"),
+    "水车博览园" to listOf("兰州牛肉面", "烤羊肉串", "三泡台盖碗茶"),
+    "黄河母亲雕塑" to listOf("烤羊肉串", "灰豆子", "甜醅子"),
+    "兰山公园" to listOf("手抓羊肉", "烤羊肉串", "黄河啤酒"),
+    "兴隆山国家级自然保护区" to listOf("手抓羊肉", "浆水面", "三泡台盖碗茶"),
+    "什川古梨园" to listOf("手抓羊肉", "浆水面", "甜醅子"),
+    "青城古镇" to listOf("浆水面", "酿皮子", "三泡台盖碗茶"),
+    "吐鲁沟国家森林公园" to listOf("手抓羊肉", "浆水面", "烤羊肉串"),
+    "兰州老街" to listOf("灰豆子", "酿皮子", "甜醅子"),
+    "黄河风情线" to listOf("烤羊肉串", "牛奶鸡蛋醪糟", "黄河啤酒")
+)
+
+// 出行指南实用信息
+private val travelTipsExtras = mapOf(
+    "飞机出行" to mapOf(
+        "contacts" to "机场问询: 0931-8168464 | 机场大巴热线: 0931-8166056",
+        "tips" to "提前2小时到达机场；旺季建议提前购票；兰中城际铁路可直达机场"
+    ),
+    "高铁出行" to mapOf(
+        "contacts" to "兰州西站问询: 0931-2941114 | 12306铁路客服: 12306",
+        "tips" to "节假日提前15天抢票；兰州西站有地铁接驳；可使用铁路12306 APP购票"
+    ),
+    "市内公交" to mapOf(
+        "contacts" to "兰州公交热线: 0931-8461114",
+        "tips" to "支付宝搜索「兰州公交乘车码」扫码乘车；BRT1号线最快捷"
+    ),
+    "出租车/网约车" to mapOf(
+        "contacts" to "出租车投诉: 12328 | 滴滴客服: 400-000-0999",
+        "tips" to "早晚高峰建议提前叫车；机场到市区打车约150-200元"
+    ),
+    "最佳旅游季节" to mapOf(
+        "contacts" to "兰州旅游服务热线: 0931-8455555",
+        "tips" to "6-9月最佳；4月可赏梨花；冬季游客少但可体验温泉"
+    ),
+    "气候特点" to mapOf(
+        "contacts" to "兰州气象台: 0931-8498532",
+        "tips" to "随身携带防晒用品；补水保湿很重要；昼夜温差大注意增减衣物"
+    ),
+    "穿衣建议" to mapOf(
+        "contacts" to "",
+        "tips" to "全年防晒必备；夏季薄外套+短袖；冬季羽绒服+保暖内衣；室内有暖气"
+    ),
+    "自驾路线" to mapOf(
+        "contacts" to "甘肃高速服务热线: 12122 | 道路救援: 122",
+        "tips" to "下载「高德地图」或「百度地图」导航；高速ETC可提前办理"
+    ),
+    "住宿推荐区域" to mapOf(
+        "contacts" to "兰州旅游投诉: 0931-8455555",
+        "tips" to "推荐住在城关区/南滨河路附近；旺季提前预订；可选黄河边景观房"
+    ),
+    "安全与健康" to mapOf(
+        "contacts" to "兰州急救中心: 120 | 报警: 110 | 旅游投诉: 12345",
+        "tips" to "紫外线强做好防晒；气候干燥多喝水；饮食偏辣可备胃药"
+    )
+)
+
 // 自定义 Material3 配色方案（蓝金系列，替换默认紫色）
 private val AppColorScheme = darkColorScheme(
     primary = GoldLight,
@@ -179,13 +320,14 @@ fun App() {
     var currentLanguage by remember { mutableStateOf(LanguageManager.getCurrentLanguageCode()) }
     var currentUser by remember { mutableStateOf<User?>(null) }
     var selectedTab by remember { mutableStateOf(0) }
+    var pendingCrossNav by remember { mutableStateOf<String?>(null) }
 
     // 根据角色校正 tab，防止停留在无权限页面
     val validTab = remember(selectedTab, currentUser?.role) {
         val role = currentUser?.role ?: UserRole.TOURIST
         when {
             selectedTab < 0 -> 0
-            selectedTab <= 7 -> selectedTab // 所有用户可见
+            selectedTab <= 7 || selectedTab == 11 -> selectedTab // 所有用户可见
             selectedTab in 8..9 && (role == UserRole.ADMIN || role == UserRole.SUPER_ADMIN) -> selectedTab
             selectedTab == 10 && role == UserRole.SUPER_ADMIN -> selectedTab
             else -> 0
@@ -230,7 +372,21 @@ fun App() {
                     onLogout = { currentUser = null; selectedTab = 0 }
                 )
                 // 右侧内容
-                MainContent(service!!, stats, currentLanguage, currentUser!!, validTab)
+                MainContent(
+                    service!!,
+                    stats,
+                    currentLanguage,
+                    currentUser!!,
+                    validTab,
+                    onTabChange = { tab, itemName ->
+                        selectedTab = tab
+                        pendingCrossNav = itemName
+                    },
+                    pendingCrossNav = pendingCrossNav,
+                    onPendingConsumed = { pendingCrossNav = null }
+                )
+
+
             }
         }
     }
@@ -289,6 +445,7 @@ fun SideBar(currentUser: User, currentLanguage: String, selectedTab: Int, onTabC
             NavItem("🏔️ 景点大全", 3),
             NavItem("🍜 兰州美食", 4),
             NavItem("🚌 出行指南", 5),
+            NavItem("⭐ 收藏夹", 11),
             NavItem("💬 ${uiStrings.chat_history}", 6),
             NavItem("📊 ${uiStrings.stats}", 7),
         )
@@ -394,7 +551,7 @@ fun SideBar(currentUser: User, currentLanguage: String, selectedTab: Int, onTabC
 data class NavItem(val label: String, val index: Int)
 
 @Composable
-fun MainContent(service: QAService, stats: Map<String, Int>, currentLanguage: String, currentUser: User, selectedTab: Int) {
+fun MainContent(service: QAService, stats: Map<String, Int>, currentLanguage: String, currentUser: User, selectedTab: Int, onTabChange: (Int, String) -> Unit, pendingCrossNav: String?, onPendingConsumed: () -> Unit) {
     val uiStrings = LanguageManager.getUIStrings()
 
     var question by remember { mutableStateOf("") }
@@ -541,15 +698,16 @@ fun MainContent(service: QAService, stats: Map<String, Int>, currentLanguage: St
             onSpeakingChange = { isSpeaking = it }
         )
         1 -> KnowledgeTab(service, currentLanguage, currentUser)
-        2 -> TravelGuideTab(service)
-        3 -> AttractionsTab(service)
-        4 -> FoodTab(service)
-        5 -> TravelTipsTab(service)
+        2 -> TravelGuideTab(service, onNavigate = { itemName -> onTabChange(3, itemName) }, pendingItemName = if (selectedTab == 2) pendingCrossNav else null, onPendingConsumed = onPendingConsumed)
+        3 -> AttractionsTab(service, onNavigateToFood = { itemName -> onTabChange(4, itemName) }, pendingItemName = if (selectedTab == 3) pendingCrossNav else null, onPendingConsumed = onPendingConsumed)
+        4 -> FoodTab(service, pendingItemName = if (selectedTab == 4) pendingCrossNav else null, onPendingConsumed = onPendingConsumed)
+        5 -> TravelTipsTab(service, pendingItemName = if (selectedTab == 5) pendingCrossNav else null, onPendingConsumed = onPendingConsumed)
         6 -> ChatHistoryTab(service, currentLanguage)
         7 -> StatsTab(service, stats, currentLanguage)
         8 -> KnowledgeManagementTab(service, currentUser)
         9 -> UserManagementTab(service, currentUser)
         10 -> SystemConfigTab(service, currentSource) { newSource -> currentSource = newSource }
+        11 -> FavoritesTab(service, onTabChange = onTabChange)
     }
     }
     }
@@ -1542,11 +1700,332 @@ fun StatsRow(label: String, value: String) {
     }
 }
 
+// ==================== 收藏按钮组件 ====================
+
+/**
+ * 收藏按钮（可复用）
+ * @param itemName 条目名称
+ * @param sourceTab 来源Tab标识（"攻略"/"景点"/"美食"/"出行"）
+ * @param service QAService实例
+ * @param compact 是否紧凑模式（列表页用小按钮）
+ */
+@Composable
+fun FavoriteButton(service: QAService, itemName: String, sourceTab: String, compact: Boolean = false) {
+    var isFav by remember(itemName) { mutableStateOf(service.isFavorite(itemName)) }
+
+    val onClick = {
+        if (isFav) {
+            service.removeFavorite(itemName)
+            isFav = false
+        } else {
+            service.addFavorite(itemName, sourceTab)
+            isFav = true
+        }
+    }
+
+    if (compact) {
+        Box(
+            modifier = Modifier.size(28.dp).clip(CircleShape)
+                .background(if (isFav) Color(0xFFFFD700) else Color(0x33FFFFFF))
+                .clickable { onClick() },
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = if (isFav) "★" else "☆",
+                fontSize = 16.sp,
+                color = if (isFav) BlueMain else GoldLight,
+                fontWeight = FontWeight.Bold
+            )
+        }
+    } else {
+        Button(
+            onClick = onClick,
+            modifier = Modifier.height(34.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = if (isFav) Color(0xFFD32F2F) else BlueMain,
+                contentColor = Color.White
+            ),
+            shape = RoundedCornerShape(17.dp),
+            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 4.dp),
+            border = if (!isFav) BorderStroke(1.5.dp, GoldLight) else null
+        ) {
+            Text(
+                if (isFav) "★ 已收藏" else "☆ 收 藏",
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold
+            )
+        }
+    }
+}
+
+// ==================== 详情页通用增强组件 ====================
+
+/**
+ * 关联知识库问答区域
+ */
+@Composable
+fun RelatedKnowledgeSection(service: QAService, keyword: String) {
+    var relatedItems by remember { mutableStateOf<List<com.lanzhou.qa.model.KnowledgeItem>>(emptyList()) }
+    var isLoading by remember { mutableStateOf(true) }
+    var expanded by remember { mutableStateOf(true) }
+
+    LaunchedEffect(keyword) {
+        withContext(Dispatchers.IO) {
+            relatedItems = service.searchKnowledge(keyword).take(5)
+            isLoading = false
+        }
+    }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = Color(0x0DFFFFFF))
+    ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth().clickable { expanded = !expanded },
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("📖 相关问答", color = GoldMain, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                Text(if (expanded) "▲ 收起" else "▼ 展开(${relatedItems.size})", color = GoldMain.copy(alpha = 0.7f), fontSize = 12.sp)
+            }
+            if (expanded) {
+                Spacer(Modifier.height(8.dp))
+                if (isLoading) {
+                    CircularProgressIndicator(modifier = Modifier.size(20.dp), color = GoldMain, strokeWidth = 2.dp)
+                } else if (relatedItems.isEmpty()) {
+                    Text("暂无相关问答", fontSize = 12.sp, color = CreamWhite.copy(alpha = 0.5f))
+                } else {
+                    relatedItems.forEach { item ->
+                        var qaExpanded by remember { mutableStateOf(false) }
+                        Card(
+                            modifier = Modifier.fillMaxWidth().clickable { qaExpanded = !qaExpanded }.padding(vertical = 3.dp),
+                            colors = CardDefaults.cardColors(containerColor = Color(0x0AFFFFFF))
+                        ) {
+                            Column(modifier = Modifier.padding(10.dp)) {
+                                Text("Q: ${item.question}", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = CreamWhite)
+                                if (qaExpanded) {
+                                    Spacer(Modifier.height(4.dp))
+                                    Text("A: ${item.answer}", fontSize = 12.sp, lineHeight = 18.sp, color = CreamWhite.copy(alpha = 0.8f))
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * AI 深度了解区域
+ */
+@Composable
+fun AiDeepDiveSection(service: QAService, itemName: String, questionTemplate: String) {
+    var aiAnswer by remember { mutableStateOf("") }
+    var isAiLoading by remember { mutableStateOf(false) }
+    var isSpeaking by remember { mutableStateOf(false) }
+    var expanded by remember { mutableStateOf(false) }
+    var userQuestion by remember { mutableStateOf("") }
+    val scope = rememberCoroutineScope()
+
+    val sendQuestion: (String) -> Unit = { question ->
+        if (question.isNotBlank() && !isAiLoading) {
+            expanded = true
+            isAiLoading = true
+            scope.launch {
+                val answer = withContext(Dispatchers.IO) { service.askQuestion(question) }
+                aiAnswer = if (aiAnswer.isNotBlank()) "$aiAnswer\n\n---\n\n$answer" else answer
+                isAiLoading = false
+            }
+        }
+    }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = Color(0x0DFFFFFF))
+    ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Button(
+                    onClick = {
+                        aiAnswer = ""
+                        sendQuestion(questionTemplate)
+                    },
+                    enabled = !isAiLoading,
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1565C0), contentColor = GoldLight),
+                    modifier = Modifier.height(36.dp)
+                ) {
+                    if (isAiLoading) {
+                        CircularProgressIndicator(modifier = Modifier.size(14.dp), color = GoldLight, strokeWidth = 2.dp)
+                        Spacer(Modifier.width(6.dp))
+                    }
+                    Text("🤖 AI 深度了解", fontSize = 12.sp)
+                }
+                if (aiAnswer.isNotBlank() && !isAiLoading) {
+                    OutlinedButton(
+                        onClick = {
+                            if (isSpeaking) {
+                                service.stopSpeaking()
+                                isSpeaking = false
+                            } else {
+                                isSpeaking = true
+                                scope.launch {
+                                    withContext(Dispatchers.IO) { service.speakText(aiAnswer) }
+                                    isSpeaking = false
+                                }
+                            }
+                        },
+                        modifier = Modifier.height(36.dp)
+                    ) {
+                        Text(if (isSpeaking) "⏹ 停止朗读" else "🔊 朗读回答", fontSize = 12.sp)
+                    }
+                }
+            }
+
+            // 用户自主提问输入行
+            Spacer(Modifier.height(8.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                OutlinedTextField(
+                    value = userQuestion,
+                    onValueChange = { userQuestion = it },
+                    placeholder = { Text("追问更多细节...", fontSize = 12.sp, color = CreamWhite.copy(alpha = 0.4f)) },
+                    modifier = Modifier.weight(1f),
+                    singleLine = true,
+                    enabled = !isAiLoading,
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+                    keyboardActions = KeyboardActions(onSend = {
+                        val q = "关于${itemName}：${userQuestion}"
+                        userQuestion = ""
+                        sendQuestion(q)
+                    }),
+                    colors = TextFieldDefaults.colors(
+                        focusedIndicatorColor = GoldMain,
+                        unfocusedIndicatorColor = CreamWhite.copy(alpha = 0.3f),
+                        focusedTextColor = CreamWhite,
+                        unfocusedTextColor = CreamWhite,
+                        cursorColor = GoldMain,
+                        focusedContainerColor = Color(0x0AFFFFFF),
+                        unfocusedContainerColor = Color(0x0AFFFFFF)
+                    ),
+                    shape = RoundedCornerShape(8.dp),
+                    textStyle = androidx.compose.ui.text.TextStyle(fontSize = 13.sp)
+                )
+                Button(
+                    onClick = {
+                        val q = "关于${itemName}：${userQuestion}"
+                        userQuestion = ""
+                        sendQuestion(q)
+                    },
+                    enabled = !isAiLoading && userQuestion.isNotBlank(),
+                    colors = ButtonDefaults.buttonColors(containerColor = GoldMain, contentColor = BlueMain),
+                    modifier = Modifier.height(40.dp),
+                    contentPadding = PaddingValues(horizontal = 14.dp)
+                ) {
+                    Text("发送", fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+
+            if (expanded) {
+                Spacer(Modifier.height(8.dp))
+                if (isAiLoading) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        CircularProgressIndicator(modifier = Modifier.size(18.dp), color = GoldMain, strokeWidth = 2.dp)
+                        Text("AI 正在思考中...", fontSize = 12.sp, color = GoldMain)
+                    }
+                } else if (aiAnswer.isNotBlank()) {
+                    Text(aiAnswer, fontSize = 13.sp, lineHeight = 20.sp, color = CreamWhite.copy(alpha = 0.9f))
+                }
+            }
+        }
+    }
+}
+
+/**
+ * TTS 朗读按钮行
+ */
+@Composable
+fun TtsButtonRow(service: QAService, text: String) {
+    var isSpeaking by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+        OutlinedButton(
+            onClick = {
+                if (isSpeaking) {
+                    service.stopSpeaking()
+                    isSpeaking = false
+                } else {
+                    isSpeaking = true
+                    scope.launch {
+                        withContext(Dispatchers.IO) { service.speakText(text) }
+                        isSpeaking = false
+                    }
+                }
+            },
+            modifier = Modifier.height(34.dp)
+        ) {
+            Text(if (isSpeaking) "⏹ 停止朗读" else "🔊 朗读详情", fontSize = 12.sp)
+        }
+    }
+}
+
+/**
+ * 相关条目推荐网格
+ */
+@Composable
+fun RelatedItemsSection(title: String, items: List<Map<String, String>>, onItemClick: (Map<String, String>) -> Unit) {
+    if (items.isEmpty()) return
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = Color(0x0DFFFFFF))
+    ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            Text(title, color = GoldMain, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(8.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                items.take(3).forEach { item ->
+                    val name = item["name"] ?: ""
+                    val ci = cardImages[name]
+                    Card(
+                        modifier = Modifier.weight(1f).clickable { onItemClick(item) },
+                        colors = CardDefaults.cardColors(containerColor = Color(0x0AFFFFFF))
+                    ) {
+                        Column {
+                            val img = if (ci != null) loadCardImage(ci.resourcePath) else null
+                            Box(
+                                modifier = Modifier.fillMaxWidth().height(70.dp).clip(RoundedCornerShape(topStart = 6.dp, topEnd = 6.dp))
+                                    .background(Brush.verticalGradient(listOf(ci?.fallbackTop ?: Color(0x330D47A1), ci?.fallbackBottom ?: Color(0x330D47A1))))
+                            ) {
+                                if (img != null) {
+                                    Image(bitmap = img, contentDescription = name, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                                }
+                            }
+                            Text(name, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = CreamWhite, maxLines = 1, modifier = Modifier.padding(6.dp))
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 /**
  * 旅游攻略 - 独立展示页面
  */
 @Composable
-fun TravelGuideTab(service: QAService) {
+fun TravelGuideTab(service: QAService, onNavigate: (String) -> Unit = {}, pendingItemName: String? = null, onPendingConsumed: () -> Unit = {}) {
     var searchQuery by remember { mutableStateOf("") }
     var selectedType by remember { mutableStateOf("全部") }
     var selectedItem by remember { mutableStateOf<Map<String, String>?>(null) }
@@ -1564,6 +2043,17 @@ fun TravelGuideTab(service: QAService) {
         mapOf("name" to "甘肃省博物馆文化之旅", "type" to "文化游", "desc" to "甘肃省博物馆是国家一级博物馆，馆藏文物约35万件。必看：马踏飞燕铜奔马（中国旅游标志）、铜奔马仪仗队、彩绘木独角兽、人形彩陶罐。丝绸之路展厅展示了两千多年前东西方文明交流的辉煌。彩陶展厅收藏了马家窑文化、齐家文化的精美彩陶。", "tips" to "建议提前3天预约，每天限流3000人。语音导览20元，参观约需3小时。")
     )
 
+    // 处理跨Tab导航传入的pending项
+    LaunchedEffect(pendingItemName) {
+        if (pendingItemName != null) {
+            val found = allGuides.find { it["name"] == pendingItemName }
+            if (found != null) {
+                selectedItem = found
+                onPendingConsumed()
+            }
+        }
+    }
+
     val types = listOf("全部") + allGuides.map { it["type"]!! }.distinct()
     val filtered = allGuides.filter { item ->
         (selectedType == "全部" || item["type"] == selectedType) &&
@@ -1571,16 +2061,25 @@ fun TravelGuideTab(service: QAService) {
     }
 
     if (selectedItem != null) {
-        Column(modifier = Modifier.fillMaxSize().padding(12.dp)) {
+        val scrollState = rememberScrollState()
+        Column(modifier = Modifier.fillMaxSize().padding(12.dp).verticalScroll(scrollState)) {
+            // 标题栏
             Row(
                 modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(GoldMain).padding(12.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(selectedItem!!["name"]!!, color = BlueMain, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                Text("📂 ${selectedItem!!["type"]}", color = BlueMain.copy(alpha = 0.8f), fontSize = 12.sp)
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                    Text(selectedItem!!["name"]!!, color = BlueMain, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    FavoriteButton(service, selectedItem!!["name"] ?: "", "攻略", compact = false)
+                    Text("📂 ${selectedItem!!["type"]}", color = BlueMain.copy(alpha = 0.8f), fontSize = 12.sp)
+                }
             }
             Spacer(Modifier.height(12.dp))
+
+            // 基础信息卡片
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1599,7 +2098,55 @@ fun TravelGuideTab(service: QAService) {
                     }
                 }
             }
+
+            // 朗读按钮
+            TtsButtonRow(service, "${selectedItem!!["name"] ?: ""}。${selectedItem!!["desc"] ?: ""}。温馨提示：${selectedItem!!["tips"] ?: ""}")
+            Spacer(Modifier.height(8.dp))
+
+            // 路线概览（从 desc 中提取分步行程）
+            val descText = selectedItem!!["desc"] ?: ""
+            val routeSteps = descText.split(Regex("(?=[A-Z]ay|Day|DAY|；|。(?=[^。]*第))")).filter { it.isNotBlank() }.takeIf { it.size > 1 }
+                ?: descText.split("；").filter { it.trim().length > 8 }.takeIf { it.size > 1 }
+            if (routeSteps != null) {
+                Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0x0DFFFFFF))) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Text("📍 路线概览", color = GoldMain, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                        Spacer(Modifier.height(8.dp))
+                        routeSteps.forEachIndexed { index, step ->
+                            Row(modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp)) {
+                                Box(
+                                    modifier = Modifier.size(24.dp).clip(RoundedCornerShape(12.dp)).background(GoldMain),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text("${index + 1}", fontSize = 11.sp, color = BlueMain, fontWeight = FontWeight.Bold)
+                                }
+                                Spacer(Modifier.width(8.dp))
+                                Text(step.trim(), fontSize = 12.sp, lineHeight = 18.sp, modifier = Modifier.weight(1f))
+                            }
+                        }
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+            }
+
+            // 相关景点推荐
+            val guideName = selectedItem!!["name"] ?: ""
+            val relatedAttractions = sharedAttractions.filter { attr ->
+                guideName.contains(attr["name"] ?: "") || (attr["name"] ?: "").let { name ->
+                    descText.contains(name)
+                }
+            }.ifEmpty { sharedAttractions.shuffled().take(3) }
+            RelatedItemsSection("🏞️ 涉及景点", relatedAttractions) { onNavigate(it["name"] ?: "") }
+            Spacer(Modifier.height(8.dp))
+
+            // AI 深度了解
+            AiDeepDiveSection(service, guideName, "请详细介绍一下兰州旅游攻略：$guideName，包括行程安排、注意事项和费用预算")
+            Spacer(Modifier.height(8.dp))
+
+            // 关联知识库问答
+            RelatedKnowledgeSection(service, guideName)
             Spacer(Modifier.height(12.dp))
+
             OutlinedButton(onClick = { selectedItem = null }) { Text("返回列表", fontSize = 12.sp) }
         }
     } else {
@@ -1662,7 +2209,10 @@ fun TravelGuideTab(service: QAService) {
                                 }
                             }
                             Column(modifier = Modifier.padding(10.dp)) {
-                                Text(item["name"] ?: "", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = CreamWhite, maxLines = 1)
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                    Text(item["name"] ?: "", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = CreamWhite, maxLines = 1, modifier = Modifier.weight(1f))
+                                    FavoriteButton(service, item["name"] ?: "", "攻略", compact = true)
+                                }
                                 Text(item["type"] ?: "", fontSize = 12.sp, color = GoldMain.copy(alpha = 0.8f))
                             }
                         }
@@ -1677,7 +2227,7 @@ fun TravelGuideTab(service: QAService) {
  * 景点大全 - 独立展示页面
  */
 @Composable
-fun AttractionsTab(service: QAService) {
+fun AttractionsTab(service: QAService, onNavigateToFood: (String) -> Unit = {}, pendingItemName: String? = null, onPendingConsumed: () -> Unit = {}) {
     var searchQuery by remember { mutableStateOf("") }
     var selectedType by remember { mutableStateOf("全部") }
     var selectedItem by remember { mutableStateOf<Map<String, String>?>(null) }
@@ -1698,6 +2248,17 @@ fun AttractionsTab(service: QAService) {
         mapOf("name" to "黄河风情线", "type" to "自然", "price" to "免费", "hours" to "全天开放", "address" to "兰州市城关区南滨河路沿线", "history" to "黄河风情线全长约10公里，是兰州市最重要的城市景观带。沿河修建了步行道、自行车道、绿化带，串联了中山桥、黄河母亲、水车博览园、绿色希望雕塑等多个景点。是兰州市民休闲散步的主要场所，也是游客感受黄河文化的最佳路线。", "activity" to "沿河散步、骑行观光、赏黄河日落、参观沿线景点", "tips" to "建议下午4-6点前往，夕阳下的黄河非常美丽。可租用共享单车骑行。", "icon" to "🌊")
     )
 
+    // 处理跨Tab导航传入的pending项
+    LaunchedEffect(pendingItemName) {
+        if (pendingItemName != null) {
+            val found = allAttractions.find { it["name"] == pendingItemName }
+            if (found != null) {
+                selectedItem = found
+                onPendingConsumed()
+            }
+        }
+    }
+
     val types = listOf("全部") + allAttractions.map { it["type"]!! }.distinct()
     val filtered = allAttractions.filter { item ->
         (selectedType == "全部" || item["type"] == selectedType) &&
@@ -1706,15 +2267,16 @@ fun AttractionsTab(service: QAService) {
 
     if (selectedItem != null) {
         // 详情页
-        Column(modifier = Modifier.fillMaxSize().padding(12.dp)) {
+        val scrollState = rememberScrollState()
+        Column(modifier = Modifier.fillMaxSize().padding(12.dp).verticalScroll(scrollState)) {
             Row(
                 modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(GoldMain).padding(12.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(selectedItem!!["name"]!!, color = BlueMain, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("⭐ 收藏 (0)", color = BlueMain.copy(alpha = 0.7f), fontSize = 12.sp)
+                Text(selectedItem!!["name"] ?: "", color = BlueMain, fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    FavoriteButton(service, selectedItem!!["name"] ?: "", "景点", compact = false)
                     Text("👁 访问量: 17", color = BlueMain.copy(alpha = 0.7f), fontSize = 12.sp)
                 }
             }
@@ -1730,7 +2292,56 @@ fun AttractionsTab(service: QAService) {
                     }
                 }
             }
+
+            // 朗读按钮
+            val attractionName = selectedItem!!["name"] ?: ""
+            TtsButtonRow(service, "$attractionName。${selectedItem!!["history"] ?: ""}。特色活动：${selectedItem!!["activity"] ?: ""}。温馨提示：${selectedItem!!["tips"] ?: ""}")
+            Spacer(Modifier.height(8.dp))
+
+            // 推荐附近美食
+            val foodNames = attractionFoodMap[attractionName] ?: emptyList()
+            val nearbyFood = sharedFoodList.filter { foodNames.contains(it["name"]) }
+            if (nearbyFood.isNotEmpty()) {
+                Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0x0DFFFFFF))) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Text("🍜 推荐美食", color = GoldMain, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                        Spacer(Modifier.height(8.dp))
+                        nearbyFood.forEach { food ->
+                            Card(
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp).clickable { onNavigateToFood(food["name"] ?: "") },
+                                colors = CardDefaults.cardColors(containerColor = Color(0x0AFFFFFF))
+                            ) {
+                                Row(modifier = Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    Text(food["icon"] ?: "🍽️", fontSize = 20.sp)
+                                    Spacer(Modifier.width(8.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(food["name"] ?: "", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = CreamWhite)
+                                        Text("${food["category"]} · ${food["price"]} · ${food["location"]}", fontSize = 11.sp, color = GoldMain.copy(alpha = 0.7f))
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+            }
+
+            // 附近景点推荐
+            val area = sharedAttractions.find { it["name"] == attractionName }?.get("area") ?: ""
+            val nearbyAttractions = sharedAttractions.filter { it["area"] == area && it["name"] != attractionName }
+            if (nearbyAttractions.isNotEmpty()) {
+                RelatedItemsSection("🏞️ 附近景点", nearbyAttractions) { item -> selectedItem = allAttractions.find { it["name"] == item["name"] } }
+                Spacer(Modifier.height(8.dp))
+            }
+
+            // AI 深度了解
+            AiDeepDiveSection(service, attractionName, "请详细介绍一下$attractionName，包括历史背景、游览攻略、最佳游玩时间和注意事项")
+            Spacer(Modifier.height(8.dp))
+
+            // 关联知识库问答
+            RelatedKnowledgeSection(service, attractionName)
             Spacer(Modifier.height(12.dp))
+
             OutlinedButton(onClick = { selectedItem = null }) { Text("返回列表", fontSize = 12.sp) }
         }
     } else {
@@ -1795,7 +2406,10 @@ fun AttractionsTab(service: QAService) {
                                 }
                             }
                             Column(modifier = Modifier.padding(10.dp)) {
-                                Text(item["name"] ?: "", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = CreamWhite, maxLines = 1)
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                    Text(item["name"] ?: "", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = CreamWhite, maxLines = 1, modifier = Modifier.weight(1f))
+                                    FavoriteButton(service, item["name"] ?: "", "景点", compact = true)
+                                }
                                 Text(item["type"] ?: "", fontSize = 12.sp, color = GoldMain.copy(alpha = 0.8f))
                                 Spacer(Modifier.height(2.dp))
                                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -1816,7 +2430,7 @@ fun AttractionsTab(service: QAService) {
  * 兰州美食 - 独立展示页面
  */
 @Composable
-fun FoodTab(service: QAService) {
+fun FoodTab(service: QAService, pendingItemName: String? = null, onPendingConsumed: () -> Unit = {}) {
     var searchQuery by remember { mutableStateOf("") }
     var selectedCategory by remember { mutableStateOf("全部") }
     var selectedItem by remember { mutableStateOf<Map<String, String>?>(null) }
@@ -1835,6 +2449,17 @@ fun FoodTab(service: QAService) {
         mapOf("name" to "黄河啤酒", "category" to "饮品", "location" to "各大超市", "taste" to "清爽", "rating" to "好评", "price" to "5-8元", "desc" to "黄河啤酒是兰州本地著名啤酒品牌，建于1985年。采用优质大麦和祁连山雪水酿造，口感清爽，泡沫细腻。经典款黄河干啤和黄河冰纯最受欢迎。搭配烤串和牛肉面是兰州人的经典组合。在兰州的每个餐馆和夜市都能看到它的身影。", "icon" to "🍺")
     )
 
+    // 处理跨Tab导航传入的pending项
+    LaunchedEffect(pendingItemName) {
+        if (pendingItemName != null) {
+            val found = allFood.find { it["name"] == pendingItemName }
+            if (found != null) {
+                selectedItem = found
+                onPendingConsumed()
+            }
+        }
+    }
+
     val categories = listOf("全部") + allFood.map { it["category"]!! }.distinct()
     val filtered = allFood.filter { item ->
         (selectedCategory == "全部" || item["category"] == selectedCategory) &&
@@ -1842,15 +2467,16 @@ fun FoodTab(service: QAService) {
     }
 
     if (selectedItem != null) {
-        Column(modifier = Modifier.fillMaxSize().padding(12.dp)) {
+        val scrollState = rememberScrollState()
+        Column(modifier = Modifier.fillMaxSize().padding(12.dp).verticalScroll(scrollState)) {
             Row(
                 modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(GoldMain).padding(12.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(selectedItem!!["name"]!!, color = BlueMain, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("⭐ 收藏 (0)", color = BlueMain.copy(alpha = 0.7f), fontSize = 12.sp)
+                Text(selectedItem!!["name"] ?: "", color = BlueMain, fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    FavoriteButton(service, selectedItem!!["name"] ?: "", "美食", compact = false)
                     Text("👁 访问量: 5", color = BlueMain.copy(alpha = 0.7f), fontSize = 12.sp)
                 }
             }
@@ -1870,7 +2496,68 @@ fun FoodTab(service: QAService) {
                     Text(selectedItem!!["desc"] ?: "", fontSize = 13.sp, lineHeight = 20.sp)
                 }
             }
+
+            // 朗读按钮
+            val foodName = selectedItem!!["name"] ?: ""
+            TtsButtonRow(service, "$foodName，${selectedItem!!["category"]}，${selectedItem!!["taste"]}口味，参考价格${selectedItem!!["price"]}。${selectedItem!!["desc"] ?: ""}")
+            Spacer(Modifier.height(8.dp))
+
+            // 推荐店铺
+            val shops = foodShopData[foodName] ?: emptyList()
+            if (shops.isNotEmpty()) {
+                Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0x0DFFFFFF))) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Text("🏪 推荐店铺", color = GoldMain, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                        Spacer(Modifier.height(8.dp))
+                        shops.forEach { shop ->
+                            Card(
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp),
+                                colors = CardDefaults.cardColors(containerColor = Color(0x0AFFFFFF))
+                            ) {
+                                Column(modifier = Modifier.padding(10.dp)) {
+                                    Text(shop["shop"] ?: "", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = CreamWhite)
+                                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                        Text("📍 ${shop["address"]}", fontSize = 11.sp, color = CreamWhite.copy(alpha = 0.7f))
+                                        if (shop["note"] != null) {
+                                            Text("💡 ${shop["note"]}", fontSize = 11.sp, color = GoldMain.copy(alpha = 0.7f))
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+            }
+
+            // 制作方法（从 desc 中提取）
+            val desc = selectedItem!!["desc"] ?: ""
+            val craftKeywords = listOf("制作", "酿造", "烤制", "蒸制", "熬煮", "发酵", "选用", "制作方法", "将")
+            val craftSentence = desc.split("。").filter { sentence ->
+                craftKeywords.any { sentence.contains(it) }
+            }
+            if (craftSentence.isNotEmpty()) {
+                Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0x0DFFFFFF))) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Text("👨‍🍳 制作工艺", color = GoldMain, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                        Spacer(Modifier.height(8.dp))
+                        craftSentence.forEach { sentence ->
+                            Text("• ${sentence.trim()}。", fontSize = 12.sp, lineHeight = 18.sp, color = CreamWhite.copy(alpha = 0.85f))
+                            Spacer(Modifier.height(2.dp))
+                        }
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+            }
+
+            // AI 深度了解
+            AiDeepDiveSection(service, foodName, "请详细介绍一下兰州美食$foodName，包括历史渊源、制作方法、口感特色、推荐吃法和搭配建议")
+            Spacer(Modifier.height(8.dp))
+
+            // 关联知识库问答
+            RelatedKnowledgeSection(service, foodName)
             Spacer(Modifier.height(12.dp))
+
             OutlinedButton(onClick = { selectedItem = null }) { Text("返回列表", fontSize = 12.sp) }
         }
     } else {
@@ -1934,7 +2621,10 @@ fun FoodTab(service: QAService) {
                                 }
                             }
                             Column(modifier = Modifier.padding(10.dp)) {
-                                Text(item["name"] ?: "", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = CreamWhite, maxLines = 1)
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                    Text(item["name"] ?: "", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = CreamWhite, maxLines = 1, modifier = Modifier.weight(1f))
+                                    FavoriteButton(service, item["name"] ?: "", "美食", compact = true)
+                                }
                                 Text(item["category"] ?: "", fontSize = 12.sp, color = GoldMain.copy(alpha = 0.8f))
                                 Spacer(Modifier.height(2.dp))
                                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -1955,7 +2645,7 @@ fun FoodTab(service: QAService) {
  * 出行指南 - 独立展示页面
  */
 @Composable
-fun TravelTipsTab(service: QAService) {
+fun TravelTipsTab(service: QAService, pendingItemName: String? = null, onPendingConsumed: () -> Unit = {}) {
     var searchQuery by remember { mutableStateOf("") }
     var selectedCategory by remember { mutableStateOf("全部") }
     var selectedItem by remember { mutableStateOf<Map<String, String>?>(null) }
@@ -1973,6 +2663,17 @@ fun TravelTipsTab(service: QAService) {
         mapOf("name" to "安全与健康", "category" to "安全", "desc" to "兰州治安良好，是全国治安满意度较高的城市。注意事项：1.紫外线强烈，注意防晒。2.气候干燥，多喝水补涂润唇膏。3.海拔约1500米，一般无高原反应。4.夜间出行注意安全，正宁路夜市较安全。5.饮食偏西北口味，不习惯可提前备胃药。", "icon" to "⚠️")
     )
 
+    // 处理跨Tab导航传入的pending项
+    LaunchedEffect(pendingItemName) {
+        if (pendingItemName != null) {
+            val found = allTips.find { it["name"] == pendingItemName }
+            if (found != null) {
+                selectedItem = found
+                onPendingConsumed()
+            }
+        }
+    }
+
     val categories = listOf("全部") + allTips.map { it["category"]!! }.distinct()
     val filtered = allTips.filter { item ->
         (selectedCategory == "全部" || item["category"] == selectedCategory) &&
@@ -1980,12 +2681,15 @@ fun TravelTipsTab(service: QAService) {
     }
 
     if (selectedItem != null) {
-        Column(modifier = Modifier.fillMaxSize().padding(12.dp)) {
+        val scrollState = rememberScrollState()
+        Column(modifier = Modifier.fillMaxSize().padding(12.dp).verticalScroll(scrollState)) {
             Row(
                 modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(GoldMain).padding(12.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(selectedItem!!["name"]!!, color = BlueMain, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                Text(selectedItem!!["name"] ?: "", color = BlueMain, fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                FavoriteButton(service, selectedItem!!["name"] ?: "", "出行", compact = false)
             }
             Spacer(Modifier.height(12.dp))
             Card(modifier = Modifier.fillMaxWidth()) {
@@ -2000,7 +2704,71 @@ fun TravelTipsTab(service: QAService) {
                     Text(selectedItem!!["desc"] ?: "", fontSize = 13.sp, lineHeight = 20.sp)
                 }
             }
+
+            // 朗读按钮
+            val tipName = selectedItem!!["name"] ?: ""
+            TtsButtonRow(service, "$tipName。${selectedItem!!["desc"] ?: ""}")
+            Spacer(Modifier.height(8.dp))
+
+            // 实用信息（联系方式 + 小贴士）
+            val extras = travelTipsExtras[tipName]
+            if (extras != null) {
+                Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0x0DFFFFFF))) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Text("📋 实用信息", color = GoldMain, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                        Spacer(Modifier.height(8.dp))
+                        if (extras["contacts"]?.isNotBlank() == true) {
+                            Text("📞 联系方式", color = GoldMain, fontSize = 12.sp)
+                            Spacer(Modifier.height(4.dp))
+                            extras["contacts"]!!.split("|").forEach { contact ->
+                                Text("• ${contact.trim()}", fontSize = 12.sp, lineHeight = 18.sp, color = CreamWhite.copy(alpha = 0.85f))
+                            }
+                            Spacer(Modifier.height(8.dp))
+                        }
+                        if (extras["tips"]?.isNotBlank() == true) {
+                            Text("💡 实用贴士", color = GoldMain, fontSize = 12.sp)
+                            Spacer(Modifier.height(4.dp))
+                            Text(extras["tips"] ?: "", fontSize = 12.sp, lineHeight = 18.sp, color = CreamWhite.copy(alpha = 0.85f))
+                        }
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+            }
+
+            // 同类别推荐
+            val category = selectedItem!!["category"] ?: ""
+            val sameCategoryTips = allTips.filter { it["category"] == category && it["name"] != tipName }
+            if (sameCategoryTips.isNotEmpty()) {
+                Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0x0DFFFFFF))) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Text("📌 更多${category}指南", color = GoldMain, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                        Spacer(Modifier.height(8.dp))
+                        sameCategoryTips.forEach { tip ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp).clickable { selectedItem = tip },
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(tip["icon"] ?: "📌", fontSize = 16.sp)
+                                Spacer(Modifier.width(8.dp))
+                                Column {
+                                    Text(tip["name"] ?: "", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = CreamWhite)
+                                    Text(tip["desc"]?.take(50) + "...", fontSize = 11.sp, color = CreamWhite.copy(alpha = 0.6f), maxLines = 1)
+                                }
+                            }
+                        }
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+            }
+
+            // AI 深度了解
+            AiDeepDiveSection(service, tipName, "请详细介绍一下兰州${tipName}的相关信息，包括具体操作指南、注意事项和费用参考")
+            Spacer(Modifier.height(8.dp))
+
+            // 关联知识库问答
+            RelatedKnowledgeSection(service, tipName)
             Spacer(Modifier.height(12.dp))
+
             OutlinedButton(onClick = { selectedItem = null }) { Text("返回列表", fontSize = 12.sp) }
         }
     } else {
@@ -2059,11 +2827,89 @@ fun TravelTipsTab(service: QAService) {
                                 }
                             }
                             Column(modifier = Modifier.padding(10.dp)) {
-                                Text(item["name"] ?: "", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = CreamWhite, maxLines = 1)
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                    Text(item["name"] ?: "", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = CreamWhite, maxLines = 1, modifier = Modifier.weight(1f))
+                                    FavoriteButton(service, item["name"] ?: "", "出行", compact = true)
+                                }
                                 Text(item["category"] ?: "", fontSize = 12.sp, color = GoldMain.copy(alpha = 0.8f))
                             }
                         }
                     }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * 收藏夹 - 按来源分组展示已收藏内容
+ */
+@Composable
+fun FavoritesTab(service: QAService, onTabChange: (Int, String) -> Unit) {
+    var favorites by remember { mutableStateOf(service.getFavorites()) }
+
+    // 每次进入重新加载
+    LaunchedEffect(Unit) {
+        favorites = service.getFavorites()
+    }
+
+    val grouped = favorites.groupBy { it.sourceTab }
+    val sourceTabOrder = listOf("攻略", "景点", "美食", "出行")
+    val sourceTabIcons = mapOf("攻略" to "🗺️", "景点" to "🏔️", "美食" to "🍜", "出行" to "🚌")
+    val sourceTabToIndex = mapOf("攻略" to 2, "景点" to 3, "美食" to 4, "出行" to 5)
+
+    Column(modifier = Modifier.fillMaxSize().padding(12.dp)) {
+        Text("⭐ 我的收藏", style = MaterialTheme.typography.titleMedium, color = GoldLight, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.height(8.dp))
+
+        if (favorites.isEmpty()) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("☆", fontSize = 48.sp, color = CreamWhite.copy(alpha = 0.3f))
+                    Spacer(Modifier.height(8.dp))
+                    Text("暂无收藏", fontSize = 16.sp, color = CreamWhite.copy(alpha = 0.5f))
+                    Spacer(Modifier.height(4.dp))
+                    Text("在攻略、景点、美食、出行页面点击 ☆ 添加收藏", fontSize = 12.sp, color = CreamWhite.copy(alpha = 0.3f))
+                }
+            }
+        } else {
+            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                sourceTabOrder.forEach { sourceTab ->
+                    val items = grouped[sourceTab] ?: return@forEach
+                    if (items.isEmpty()) return@forEach
+
+                    val icon = sourceTabIcons[sourceTab] ?: "📌"
+                    Text("$icon 来自「${sourceTab}」", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = GoldMain)
+                    Spacer(Modifier.height(6.dp))
+
+                    items.forEach { fav ->
+                        Card(
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).clickable {
+                                val targetTab = sourceTabToIndex[sourceTab] ?: return@clickable
+                                onTabChange(targetTab, fav.itemName)
+                            },
+                            colors = CardDefaults.cardColors(containerColor = Color(0x15FFFFFF)),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(12.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(fav.itemName, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = CreamWhite)
+                                    Text("收藏于 ${fav.timestamp}", fontSize = 11.sp, color = CreamWhite.copy(alpha = 0.5f))
+                                }
+                                IconButton(onClick = {
+                                    service.removeFavorite(fav.itemName)
+                                    favorites = service.getFavorites()
+                                }) {
+                                    Text("⭐", fontSize = 18.sp)
+                                }
+                            }
+                        }
+                    }
+                    Spacer(Modifier.height(12.dp))
                 }
             }
         }
