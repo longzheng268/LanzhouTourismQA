@@ -2411,12 +2411,6 @@ fun AttractionsTab(service: QAService, onNavigateToFood: (String) -> Unit = {}, 
                                     FavoriteButton(service, item["name"] ?: "", "景点", compact = true)
                                 }
                                 Text(item["type"] ?: "", fontSize = 12.sp, color = GoldMain.copy(alpha = 0.8f))
-                                Spacer(Modifier.height(2.dp))
-                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                    Text("👁 0", fontSize = 10.sp, color = CreamWhite.copy(alpha = 0.5f))
-                                    Text("⭐ 0", fontSize = 10.sp, color = CreamWhite.copy(alpha = 0.5f))
-                                    Text("👍 0", fontSize = 10.sp, color = CreamWhite.copy(alpha = 0.5f))
-                                }
                             }
                         }
                     }
@@ -2626,12 +2620,6 @@ fun FoodTab(service: QAService, pendingItemName: String? = null, onPendingConsum
                                     FavoriteButton(service, item["name"] ?: "", "美食", compact = true)
                                 }
                                 Text(item["category"] ?: "", fontSize = 12.sp, color = GoldMain.copy(alpha = 0.8f))
-                                Spacer(Modifier.height(2.dp))
-                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                    Text("👁 0", fontSize = 10.sp, color = CreamWhite.copy(alpha = 0.5f))
-                                    Text("⭐ 0", fontSize = 10.sp, color = CreamWhite.copy(alpha = 0.5f))
-                                    Text("👍 0", fontSize = 10.sp, color = CreamWhite.copy(alpha = 0.5f))
-                                }
                             }
                         }
                     }
